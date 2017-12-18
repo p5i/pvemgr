@@ -36,10 +36,11 @@ Ext.define('PveMgr.model.Vm', {
         },{
             name: 'ip',
             calculate: d => {
+                if (d.vmid == 9001) console.log(d);
                 if(!d.vmid) return; // For groupping to work properly
                 let dscr = d.config.description;
                 return dscr ?
-                    (dscr.match(/.*\nIP: ([^;]+);.*/, '$1') || [])[1]
+                    (dscr.match(/(?:^|.*\n)IP: ([^;]+);.*/, '$1') || [])[1]
                     : '';
             },
         },{
