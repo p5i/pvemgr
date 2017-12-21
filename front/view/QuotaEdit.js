@@ -1,7 +1,7 @@
-Ext.define('PveMgr.view.AclEdit', {
+Ext.define('PveMgr.view.QuotaEdit', {
     extend: 'Ext.form.Panel',
-    xtype: 'pvemgr.acledit',
-    controller: 'pvemgr.acledit',
+    xtype: 'pvemgr.quotaedit',
+    controller: 'pvemgr.quotaedit',
     jsonSubmit: true,
     url: 'api/script',
     buttonAlign: 'center',
@@ -193,11 +193,11 @@ Ext.define('PveMgr.view.AclEdit', {
         {
             text: 'Сохранить',
             formBind: true,
-            handler: 'poolAclSave',
+            handler: 'poolQuotaSave',
         },{
             text: 'Сброс',
             tooltip: 'Очистить Параметры',
-            handler: 'poolAclReset',
+            handler: 'poolQuotaReset',
             tooltip: 'Сбросить текущие значения и загрузить сохраненные с сервера',
         },
     ],

@@ -60,8 +60,8 @@ Ext.define('PveMgr.view.VmCreatorController', {
             dopve: data.dopve || undefined,
         }));
         console.log(vms);
-        PveMgr.deployVms({vms: vms},
-                (req) => button.enable(true));
+        PveMgr.deployVms( {vms: vms},
+                (req) => button.enable(true) );
     },
     generateVms: function() {
         let templField = this.getView().getForm().findField('template');

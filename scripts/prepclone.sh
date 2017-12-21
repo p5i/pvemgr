@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -x
-
 #
 # Creating new VM by cloning from template then cleaning and preparing image
 # Tested on Ubuntu 16.04
@@ -19,6 +17,7 @@ set -x
 # -S | --storage (storage) -- target storage ID
 # -v | --vlan (vlan) -- Change interface VLAN tag to specified
 # -V | --vm (vm) -- VM name if different from hostname
+# -p | --pool (pool) -- Pool ID
 # --DO_PVE (do_pve) -- add commands to create clone from PVE template
 # --DO_START (do_start) -- start new VM
 #
@@ -91,6 +90,10 @@ do
       nodeaddress="$2"
       shift 2
       ;;
+      -p | --pool)
+      pool="$2"
+      shift 2
+      ;;
       --DO_PVE)
       do_pve=1
       shift
@@ -125,9 +128,6 @@ if [ -z "$tmpdir" ]; then
    tmpdir=/mnt/tmpsshfs_${nodeaddress}_$MYPID
 fi
 
-#sleep $(( RANDOM % 30 +1 ))
-#exit
-
 trap "umount $tmpdir" EXIT
 
 echo cloning $tmpl to $vm $id $ip on $node, working in $tmpdir
@@ -142,6 +142,10 @@ done
 (($? != 0)) && { echo "Too many create VM retries; Probably wrong VMID" ; exit; }
 
 echo $newid
+
+if [ -n "$pool" ]; then
+   ssh $nodeaddress "pvesh set pools/$pool -vms $newid"
+fi
 
 if [ -n "$ip" ]; then
    if [ -n "$gateway" ]; then

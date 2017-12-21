@@ -24,7 +24,7 @@ use List::Util qw(reduce);
 use JSON; # decode_json, encode_json
 use File::MimeInfo qw/mimetype/;
 use POSIX qw/strftime/;
-use IPC::Run qw/run/;
+use IPC::Run;# qw/run/;
 use Capture::Tiny qw'capture tee';    # Trying to catch warnings from Net::Proxmox::VE requests
 use URI::Escape qw/uri_escape uri_escape_utf8/;
 use lib "$FindBin::Bin/../lib";
@@ -36,8 +36,8 @@ use constant EXTJS      => SRVHOME . '/extjs/current';
 use constant TASKLOGS   => SRVHOME . '/tasklogs/';
 use constant SCRIPTS    => SRVHOME . '/scripts/';
 
-my $pvehost     = '10.100.9.100';
-#my $pvehost     = '10.14.31.21';
+#my $pvehost     = '10.100.9.100';
+my $pvehost     = '10.14.31.21';
 my $pvedebug    = 1;
 my $pverealm    = 'pam'; # 'pve' or 'pam'
 my $pve;
@@ -216,29 +216,46 @@ sub pmgr_api_request { # <API call>
         } );
 
     } elsif ( $path eq '/api/vmdeploy' ) {
-        my (@vms, $vm);
         
-        eval {
+        fork_call {
             my $content = decode_json($req->content);
-            my $poolid = $content->{poolid};
+            my $poolid = $content->{poolid} or die 'Не задан пул!';
+            
             #~ pmgr_pool_lock($poolid);
-            @vms = @{ $content->{vms} };
+            
+            my @vms = @{ $content->{vms} };
             
             pmgr_validate_or_die( map {%$_} @vms, $content->{poolid} );
             
             my $pool = pmgr_poolresources( $pve, [$poolid] )->[0];
-            my $pool->{acls} = pmgr_calc_pool_acl_or_die($pool);
-            my $dplParams = pmgr_vmdeploy_prepare_or_die($pve, $content, $pool);
             
-            #~ pmgr_success( $req, $content );
-            #~ return;
+            eval {
+                $pool->{quota} = pmgr_calc_pool_quota_or_die($pool);
+            };
+            die "Квоты не заданы, или ошибка при обработке квот пула $poolid"
+                . "Текст ошибки: $@"
+            if $@;
+
+            my $deployParams =
+                pmgr_vmdeploy_prepare_or_die( $pve, $content, $pool );
             
-            pmgr_vmsdeploy($req, $pve, @vms);
-        };
-        if ($@) {
-            ddx $@;
-            pmgr_fiasco($req, $@);
-            return;
+            pmgr_quota_check(   $deployParams->{vms},
+                                $pool->{quota},
+                                $pool->{allocated} );
+            
+            return @vms;
+        } sub {
+            my @vms = @_;
+            pmgr_fiasco($req, $@) unless @_;
+            eval {
+                my $msg = pmgr_vmsdeploy( $req, $pve, \@vms, sub {
+                    # There whill be after deploy handlers
+                } );
+                
+                # Response on successful start of deploy (not finish)
+                pmgr_success($req, $msg);
+            };
+            pmgr_fiasco($req, $@) unless @_;
         }
         
 
@@ -278,12 +295,12 @@ sub pmgr_api_request { # <API call>
             pmgr_success( $req, shift );
         }
 
-    } elsif ($path eq '/api/poolaclsave') {
+    } elsif ($path eq '/api/poolquotasave') {
         fork_call {
             my $content = decode_json($req->content);
             pmgr_validate_or_die(values %$content);
             my $pool = delete $content->{pool};
-            pmgr_set_pool_acl_or_die($pve, $pool, $content);
+            pmgr_set_pool_quota_or_die($pve, $pool, $content);
         } sub {
             pmgr_fiasco($req, $@) if $@;
             pmgr_success( $req, "Сохранено" );
@@ -319,7 +336,8 @@ sub pmgr_fiasco {
         success => 0,
         errorMsg => "Server Error:\n$err",
     };
-    ddx "Fiasco",  . $req->method . ' ' . $req->url
+    ddx $err;
+    ddx "Fiasco! " . $req->method . ' ' . $req->url
         ."; Client: $req->{host}:$req->{port}";
     pmgr_respond($req, $resp);
 }
@@ -381,55 +399,48 @@ sub pmgr_dump {
 }
 
 sub pmgr_vmdeploy {
-    my ($pve, $vm, $fhResultlog) = @_; # vm hash and result log file handle
-    my $logfile = strftime("%Y-%m-%d_%H-%M-%S", localtime)
-            . "-deploy-$vm->{vmid}-$vm->{hostname}.log";
-    my @cloncmd = (SCRIPTS . 'prepclone.sh');
-    if($vm->{template}) {
-        push @cloncmd, '-s', $vm->{template};
-    } else {
-        push @cloncmd, '-s', '100';
-    }
-    if(my $node = $vm->{node}) {
-        my $nodes = $pve->get('/cluster/status');
-        my @node = grep {$_->{name} eq $node} @$nodes;
-        my $addr = $node[0]{ip};
-        push  @cloncmd, '-n', $node, '--node-address', $addr;
-    } else {
-        push  @cloncmd, '-n', 'pve21', '--node-address', '10.14.31.21';
-    };
-    ddx $vm;
-    push @cloncmd, ("-i", $vm->{vmid})
-        if defined $vm->{vmid};
-    push @cloncmd, ("-t", $vm->{hostname})
-        if defined $vm->{hostname};
-    push @cloncmd, ("-v", $vm->{vlan})
-        if defined $vm->{vlan};
-    push @cloncmd, ("-a", $vm->{ip})
-        if defined $vm->{ip};
-    push @cloncmd, ("-V", $vm->{name})
-        if defined $vm->{name};
-    push @cloncmd, ("-m", $vm->{mask})
-        if defined $vm->{mask};
-    push @cloncmd, ("-g", $vm->{gateway})
-        if defined $vm->{gateway};
-    push @cloncmd, ("--DO_START")
-        if $vm->{start};
-    push @cloncmd, ("--DO_PVE")
-        if $vm->{dopve};
-    ddx @cloncmd;
-    fork_call {
-        run( \@cloncmd,
-            '>&', TASKLOGS . $logfile);
-        return ($vm->{vmid}, $vm->{name});
-    } sub {
-        unless (@_) {
-            say $fhResultlog "Deploy error, check logfiles. $@; $!";
+    my ($pve, $vm, $logfile) = @_;
+        my @cloncmd = (SCRIPTS . 'prepclone.sh');
+        if($vm->{template}) {
+            push @cloncmd, '-s', $vm->{template};
         } else {
-            say $fhResultlog "VM deploy finished. " . join(',', @_);
+            push @cloncmd, '-s', '100';
         }
-    };
-    return $logfile;
+        if(my $node = $vm->{node}) {
+            my $nodes = $pve->get('/cluster/status');
+            my @node = grep {$_->{name} eq $node} @$nodes;
+            my $addr = $node[0]{ip};
+            push  @cloncmd, '-n', $node, '--node-address', $addr;
+        } else {
+            push  @cloncmd, '-n', 'pve21', '--node-address', '10.14.31.21';
+        };
+
+        push @cloncmd, ("-i", $vm->{vmid})
+            if defined $vm->{vmid};
+        push @cloncmd, ("-t", $vm->{hostname})
+            if defined $vm->{hostname};
+        push @cloncmd, ("-v", $vm->{vlans}[0])
+            if defined $vm->{vlans} && $vm->{vlans}[0];
+        push @cloncmd, ("-a", $vm->{ip})
+            if defined $vm->{ip};
+        push @cloncmd, ("-V", $vm->{name})
+            if defined $vm->{name};
+        push @cloncmd, ("-m", $vm->{mask})
+            if defined $vm->{mask};
+        push @cloncmd, ("-g", $vm->{gateway})
+            if defined $vm->{gateway};
+        push @cloncmd, ("-p", $vm->{poolid})
+            if defined $vm->{poolid};
+        push @cloncmd, ("--DO_START")
+            if $vm->{start};
+        push @cloncmd, ("--DO_PVE")
+            if $vm->{dopve};
+
+        ddx join ( ' ', @cloncmd );
+        IPC::Run::run( \@cloncmd,
+            '>&', TASKLOGS . $logfile);
+
+        return ($vm->{vmid}, $vm->{name});
 }
 
  # pmgr_login
@@ -644,32 +655,52 @@ sub pmgr_cmd {
 }
 
 sub pmgr_vmsdeploy {
-    my ($req, $pve, @vms) = @_;
-    
-    my $logfile = strftime( "%Y-%m-%d_%H-%M-%S", localtime )
+    my ($req, $pve, $vms, $callback) = @_;
+
+    my $logfile = strftime( "%Y-%m-%d_%T", localtime )
                 . "-deploy.log";
     my @logfiles = ($logfile);
-    open my $logfh, '>', TASKLOGS.$logfile;
-    say $logfh "deploying " . join( ', ', map { $_->{hostname} } @vms );
-    fork_call {
-        #~ my $deployres = pmgr_calc_vmdeploy(\@vms);
-        #~ return $deployres;
-        #~ my $poolres = pmgr_poolresources($pve);
-        
-        foreach my $vm (@vms) {
-            $logfile = pmgr_vmdeploy($pve, $vm, $logfh);
-            push @logfiles, $logfile;
-            ddx $logfile;
-        }
-    } sub {
-        ddx @logfiles;
-        pmgr_fiasco($req, $@) if $@;
-        
-        #~ pmgr_success( $req, shift );
-        #~ return;
-        
-        pmgr_success( $req, "Журналы:\n" . join("\n", @logfiles) );
+    
+    my $logfh;
+    eval {
+        open $logfh, '>', TASKLOGS.$logfile;
+        say $logfh "deploying " . join( ', ', map { $_->{hostname} } @{$vms} );
     };
+    pmgr_fiasco($req, $@) if $@;
+    
+    my ( @started, @finished );
+    foreach my $vm ( @{$vms} ) {
+        
+        push @started, $vm;
+        
+        my $vmlogfile = strftime("%Y-%m-%d_%T", localtime)
+            . "-deploy-$vm->{vmid}-$vm->{hostname}.log";
+        push @logfiles, $vmlogfile;
+        
+        fork_call {
+            pmgr_vmdeploy( $pve, $vm, $vmlogfile );
+            return $vm;
+        } sub {
+            if ( !@_ ) {
+                say $@;
+            } else {
+                say $logfh @_ ? "Finished deploying $_[0]->{vmid}" :  
+                push @finished, shift;
+            }
+            
+            if ( defined $callback ) {
+                $callback->({
+                    error => $@,
+                    complete => @started == @finished,
+                    started => \@started,
+                    finished => \@finished
+                });
+            }
+        };
+        
+    }
+
+    return "Журналы:\n" . join("\n", @logfiles);
 }
 
 # "Returns" content array [ Content-Type, Content body ]
@@ -753,7 +784,6 @@ sub pmgr_poolresources {
 # $pve is optional, depending on pasased vm properties
 sub pmgr_vm {
     my ($vm, $pve ) = @_;
-    ddx $vm;
     if( !$vm->{node} ) {
         #~ my @vm0 =  grep { $_->{vmid} eq $vm->{vmid} }
                 #~ $pve->get_cluster_resources( type => 'vm' );
@@ -789,18 +819,20 @@ sub pmgr_vm_totals {
     return \%alloc;
 }
 
-sub pmgr_calc_pool_acl_or_die {
+sub pmgr_calc_pool_quota_or_die {
     my $comment = %{ shift() }{comment};
-    my $acl = $comment =~ s/.*___ACL: (.*); ACL___/$1/r;
-    return decode_json($acl);
+    my $quota = $comment =~ s/.*___QUOTA: (.*); QUOTA___/$1/r;
+    ddx $quota;
+    return decode_json($quota);
+;
 }
 
-sub pmgr_set_pool_acl_or_die {
-    my ($pve, $pool, $acl) = @_;
+sub pmgr_set_pool_quota_or_die {
+    my ($pve, $pool, $quota) = @_;
     my $comment = $pve->get_pool($pool)->{comment};
-    $acl = encode_json($acl);
-    $comment =~ s/(.*___ACL: ).*(; ACL___)/$1$acl$2/ or 
-        $comment = $comment . '___ACL: ' . $acl . '; ACL___';
+    $quota = encode_json($quota);
+    $comment =~ s/(.*___QUOTA: ).*(; QUOTA___)/$1$quota$2/ or 
+        $comment = $comment . '___QUOTA: ' . $quota . '; QUOTA___';
     $pve->update_pool( $pool, { comment => uri_escape_utf8($comment) } );
     return 1;
 }
@@ -815,28 +847,63 @@ sub pmgr_wrong_path {
     ]);
 }
 
+# Verify and fill given deploy parameters
 sub pmgr_vmdeploy_prepare_or_die {
     my ( $pve, $inparams, $pool ) = @_;
-    ddx $inparams;
     
     my @templates = keys {
         map { $_ => 1 }
         map { $_->{template} } @{ $inparams->{vms} }
     };
-    @templates = map { pmgr_vm( { vmid => $_ }, $pve ) } @templates;
-    ddx \@templates;
+    eval {
+        @templates = map { pmgr_vm( { vmid => $_ }, $pve ) } @templates;
+    };
+    if ($@) {
+        ddx $@;
+        die "Не корректные шаблоны ВМ " . pp (@templates);
+    }
     foreach my $vm ( @{$inparams->{vms}} ) {
         my $template = shift([
             grep { $_->{vmid} eq $vm->{template} } @templates
         ]);
-        $vm->{vlans} ||= [ $pool->{acls}{vlanMin} ];
-        #~ $vm->{maxcpu} = 
+        $vm->{poolid} = $pool->{poolid};
+        $vm->{config} = $template->{config};
+        $vm->{diskSize} = $template->{diskSize};
+        $vm->{vlans} ||= [ $pool->{quota}{vlanMin} ];
+        ddx $vm->{vmid};
+        if ( !$vm->{vmid} ) {
+            my @vmids = map { $_->{vmid } } @{ $pool->{vms} };
+            for my $vmid ( $pool->{quota}{vmidMin} .. $pool->{quota}{vmidMax} ) {
+                ddx $vmid, @vmids;
+                if ( ! grep { $vmid == $_ } @vmids ) {
+                    $vm->{vmid} = $vmid;
+                    last;
+                }
+            }
+            die "Невозможно назначить VMID" if $vm->{vmid} ==  $pool->{quota}{vmidMax};
+        } 
+        ddx $vm;
     }
-    return 1;
+    return $inparams;
 }
 
 sub pmgr_calc_vmdeploy {
     my $vms = shift;
     ddx scalar @$vms;
     return 1;
+}
+
+sub pmgr_quota_check {
+    my ( $vms, $quota, $alloc ) = @_;
+    ddx $quota;
+    ddx $vms;
+    my $cpuReq = reduce { $a + $b } 0,
+        map { $_->{config}{cores} } @{ $vms };
+    my $memReq = reduce { $a + $b } 0,
+        map { $_->{config}{memory} } @{ $vms };
+    my $diskReq = reduce { $a + $b } 0,
+        map { $_->{diskSize} } @{ $vms };
+    ddx $cpuReq, $memReq, $diskReq, $alloc;
+    
+    
 }

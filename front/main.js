@@ -33,7 +33,7 @@ Ext.application({
         'PveMgr.view.ScriptedActionController',
         'PveMgr.view.VmBulkDeployController',
         'PveMgr.view.WorkspaceController',
-        'PveMgr.view.AclEditController',
+        'PveMgr.view.QuotaEditController',
         'PveMgr.view.WorkspaceModel',
         'PveMgr.view.VmBulkDeployModel',
         'PveMgr.view.VmCreator',
@@ -41,7 +41,7 @@ Ext.application({
         'PveMgr.view.Workspace',
         'PveMgr.view.VmPanel',
         'PveMgr.view.VmBulkDeploy',
-        'PveMgr.view.AclEdit',
+        'PveMgr.view.QuotaEdit',
         'PveMgr.view.Login',
     ],
     mainView: 'Workspace',
@@ -62,13 +62,13 @@ Ext.application({
                     try {
                         r = Ext.decode(resp.responseText);
                         if (r.success !== 1) throw new Error(r.errorMsg);
+                        callback(r);
                     } catch (er) { // Backend application error
                         console.error('ОШИБКА серверного приложения.', er);
                         er.message = 'Ошибка серверного приложения. '
                             + er.message;
                         callback({success: false, err: er});
                     }
-                    callback(r);
                 },
                 failure: function(resp, opts) {  // Communication error
                     console.error('ОШИБКА ЗАПРОСА', resp, opts);
@@ -88,7 +88,8 @@ Ext.application({
                 opts,
                 r => {
                     if (r && r.success !== false) {
-                        Ext.Msg.alert('Ответ сервера',
+                        console.log(r);
+                        Ext.Msg.alert('Ответ сервера (деплой)',
                             '<pre>' + r.msg + '</pre>');
                     } else {
                         Ext.Msg.alert('Ошибка запроса', r.err.message);

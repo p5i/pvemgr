@@ -130,9 +130,9 @@ Ext.define('PveMgr.view.Workspace', {
                     reference: 'serviceConstructor',
                     title: 'Конструктор',
                 },{
-                    xtype: 'pvemgr.acledit',
+                    xtype: 'pvemgr.quotaedit',
                     reference: 'aclEdit',
-                    title: 'ACL',
+                    title: 'Квота',
                 },
             ],
             bodyPadding: 5,
