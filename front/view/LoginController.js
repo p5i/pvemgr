@@ -10,6 +10,7 @@ Ext.define('PveMgr.view.LoginController', {
         var unField = this.lookupReference('usernameField');
         var saveunField = this.lookupReference('saveunField');
         var pwField = this.lookupReference('passwordField');
+        var realmCbx = form.getForm().findField('realm');
         var view = this.getView();
 
         if(form.isValid()){
@@ -22,7 +23,8 @@ Ext.define('PveMgr.view.LoginController', {
             } else {
                 sp.clear(unField.getStateId());
             }
-            sp.set(saveunField.getStateId(), saveunField.getValue());
+            sp.set( saveunField.getStateId(), saveunField.getValue() );
+            sp.set( realmCbx.getStateId(), realmCbx.getValue() )
             let values = form.getValues();
             pwField.setRawValue();
             
@@ -73,7 +75,7 @@ Ext.define('PveMgr.view.LoginController', {
                 var unField = this.lookupReference('usernameField');
                 var realmCbx = this.lookupReference('realmComboBox');
 
-                var checked = sp.get(checkboxField.getStateId());
+                var checked = sp.get( checkboxField.getStateId() );
                 checkboxField.setValue(checked);
 
                 if(checked === true) {
@@ -85,8 +87,16 @@ Ext.define('PveMgr.view.LoginController', {
                 
                 if ( !realmCbx.getValue() ) {
                     let rlmStore = realmCbx.getStore();
-                    rlmStore.load( () => {
-                        realmCbx.select(rlmStore.findRecord('realm', 'pam') );
+                    let defrealm =  sp.get( realmCbx.getStateId() );
+                    console.log(defrealm);
+                    rlmStore.load( (records) => {
+                        if (!defrealm) {
+                            Ext.each(records, (r) => {
+                                if (r.data.default) defrealm = r.data.realm;
+                            })
+                        }
+                        realmCbx.select( rlmStore.findRecord(
+                            'realm', defrealm || 'pam') );
                     } );
                 }
             },

@@ -66,6 +66,7 @@ Ext.define('PveMgr.view.Login', {
                     valueField: 'realm',
                     reference: 'realmComboBox',
                     allowBlank: true,
+                    stateId: 'default-realm',
                 },
             ],
             buttons: [
