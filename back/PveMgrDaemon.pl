@@ -2,9 +2,6 @@
 
 use common::sense;
 
-# switching to nobody UID
-#pp __LINE__ , $> = 65534;
-
 # <DEBUGS>
 use Data::Dump qw/pp dd ddx/;
 $Data::Dump::INDENT = "| ";
@@ -29,12 +26,34 @@ use Capture::Tiny qw'capture tee';    # Trying to catch warnings from Net::Proxm
 use URI::Escape qw/uri_escape uri_escape_utf8/;
 use lib "$FindBin::Bin/../lib";
 use Net::Proxmox::VE;
+use Proc::Daemon;
 
 use constant SRVHOME    => "$FindBin::Bin/..";
 use constant FRONT      => SRVHOME . "/front";
 use constant EXTJS      => SRVHOME . '/extjs/current';
 use constant TASKLOGS   => SRVHOME . '/tasklogs/';
 use constant SCRIPTS    => SRVHOME . '/scripts/';
+
+use constant PMGR_USER    => 'pvemgr';
+use constant PMGR_GROUP    => 'pvemgr';
+use constant PMGR_HOME    => '/var/lib/pvemgr';
+use constant PMGR_LOGDIR    => PMGR_HOME . '/logs/';
+
+# switching to pvemgr UID
+my $uid = getpwnam(PMGR_USER);
+my $gid = ( getgrnam(PMGR_GROUP) );
+$) = "$gid $gid";
+$> = $uid;
+
+ddx "UID: $>, GID: $)";
+
+Proc::Daemon::Init({
+    child_STDOUT    => '+>>' . PMGR_LOGDIR . 'out.log',
+    child_STDERR    => '+>>' . PMGR_LOGDIR . 'debug.log',
+    work_dir        => PMGR_HOME,
+    dont_close_fd   => [3,4,5],
+});
+
 
 #my $pvehost     = '10.100.9.100';
 my $pvehost     = '10.14.31.21';
@@ -47,8 +66,8 @@ my @pmgrSessions = ();
 my $httpd = AnyEvent::HTTPD->new(
     port    => 3333,
     ssl     => {
-        cert_file   => "/etc/ssl/certs/ssl-cert-snakeoil.pem",
-        key_file    => "/etc/ssl/private/ssl-cert-snakeoil.key",
+        cert_file   => "/var/lib/pvemgr/.ssl/certs/ssl-cert-snakeoil.pem",
+        key_file    => "/var/lib/pvemgr/.ssl/private/ssl-cert-snakeoil.key",
     }
 );
 
