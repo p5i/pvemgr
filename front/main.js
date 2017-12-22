@@ -75,7 +75,7 @@ Ext.application({
                     callback({
                         success: false,
                         err: new Error(
-                            `${resp.statusText}, ${resp.status}`
+                            `Ответ: ${resp.statusText}, Статус: ${resp.status}`
                         ),
                     });
                 },
