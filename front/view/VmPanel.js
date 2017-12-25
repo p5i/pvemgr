@@ -5,6 +5,54 @@ Ext.define('PveMgr.view.VmPanel', {
     scrollable: true,
     items: [
         {
+            xtype: 'panel',
+            title: 'Запуск команд',
+            iconCls: 'x-fa fa-terminal',
+            layout: 'border',
+            items: [
+                {
+                    region: 'center',
+                    xtype: 'panel',
+                    autoScroll: true,
+                    border: true,
+                    margins: '5 5 5 5',
+                    bodyStyle: 'font-family: monospace; background-color: beige;',
+                },{
+                    region: 'south',
+                    margins:'0 5 5 5',
+                    border: false,
+                    xtype: 'textfield',
+                    name: 'cmd',
+                    value: '',
+                    fieldStyle: 'font-family: monospace;',
+                    allowBlank: true,
+                    listeners: {
+                        //~ afterrender: function(f) {
+                            //~ f.focus(false);
+                            //~ addLine("Type 'help' for help.");
+                            //~ refresh();
+                        //~ },
+                        specialkey: function(f, e, eOpts) {
+                            if (e.getKey() === e.ENTER) {
+                                let cmd = f.getValue();
+                                f.setValue('');
+                                let vmid = f.lookupViewModel().getData();
+                                PveMgr.qagentExec(vmid, cmd);
+                            } else if (e.getKey() === e.PAGE_UP) {
+                                textbox.scrollBy(0, -0.9*textbox.getHeight(), false);
+                            } else if (e.getKey() === e.PAGE_DOWN) {
+                                textbox.scrollBy(0, 0.9*textbox.getHeight(), false);
+                            }
+                        }
+                    },
+                    width: '100%',
+                },
+            ],
+        },{
+            xtype: 'panel',
+            title: 'Управление',
+            iconCls: 'pictos pictos-settings2',
+        },{
             xtype: 'grid',
             title: 'Диски',
             iconCls: 'x-fa fa-database',
@@ -56,8 +104,9 @@ Ext.define('PveMgr.view.VmPanel', {
             ],
         },
     ],
-    initComponent: function() {
-        this.callParent(arguments);
-        console.log(this.getViewModel().getData().record.data);
-    },
+    //~ initComponent: function() {
+        //~ this.callParent(arguments);
+        //~ console.log(this.lookupViewModel());
+        //~ console.log(this.getViewModel().getData().record.data);
+    //~ },
 });
