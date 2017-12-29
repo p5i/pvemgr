@@ -33,11 +33,14 @@ Ext.define('PveMgr.view.VmPanel', {
                             //~ refresh();
                         //~ },
                         specialkey: function(f, e, eOpts) {
+                            console.log(f.up().prevChild(f).getEl().setHtml("Запрос отправлен"));
                             if (e.getKey() === e.ENTER) {
                                 let cmd = f.getValue();
                                 f.setValue('');
-                                let vmid = f.lookupViewModel().getData();
-                                PveMgr.qagentExec(vmid, cmd);
+                                let vmrecord = f.lookupViewModel()
+                                    .get('record').getData();
+                                PveMgr.qagentAction(vmrecord, 'exec',
+                                    {cmd}, function(resp) {f.up().prevChild(f).getEl().setHtml(resp.msg)} );
                             } else if (e.getKey() === e.PAGE_UP) {
                                 textbox.scrollBy(0, -0.9*textbox.getHeight(), false);
                             } else if (e.getKey() === e.PAGE_DOWN) {

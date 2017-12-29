@@ -116,6 +116,14 @@ Ext.application({
                  :  console.log('Toast', message);
             Ext.toast( message, title, align, iconcls );
         };
+        PveMgr.qagentAction = function(vm, action, data, callback) {
+            PveMgr.req( 'api/qagentaction', {
+                action,
+                data,
+                vmid: vm.vmid,
+                node: vm.node,
+            }, callback );
+        };
         PveMgr.comboLoadOnce = function(combo, store) {
             if (store.getData().getAt(0)) {
                 combo.select(store.getData().getAt(0));

@@ -27,6 +27,8 @@ use URI::Escape qw/uri_escape uri_escape_utf8/;
 use lib "$FindBin::Bin/../lib";
 use Net::Proxmox::VE;
 use Proc::Daemon;
+use Net::OpenSSH;
+use MIME::Base64;
 
 use constant SRVHOME    => "$FindBin::Bin/..";
 use constant FRONT      => SRVHOME . "/front";
@@ -325,6 +327,34 @@ sub pmgr_api_request { # <API call>
             pmgr_success( $req, "Сохранено" );
         }
         
+    } elsif ($path eq '/api/qagentaction') {
+        fork_call {
+            my $content = decode_json($req->content);
+            my $data = delete $content->{data};
+            pmgr_validate_or_die(values %$content, values %$data);
+            
+            my $execresult = pmgr_qagent_action_or_die( {
+                vmid => $content->{vmid},
+                node => $content->{node},
+                action => $content->{action},
+                data => $data,
+            } );
+            
+            if ( $content->{action} eq 'exec') {
+                sleep 2; # TODO Implement readiness check in loop instead of hardcoded timeout
+                my $statusresult = pmgr_qagent_action_or_die( {
+                    vmid => $content->{vmid},
+                    node => $content->{node},
+                    action => 'exec-status',
+                    data => { pid => $execresult->{return}{pid} },
+                } );
+                decode_base64($statusresult->{return}{'out-data'});
+            }
+        } sub {
+            pmgr_fiasco($req, $@) if $@;
+            pmgr_success( $req, shift );
+        }
+
     } elsif ($path eq '/api/test') {
         fork_call {
             my $content = decode_json($req->content);
@@ -925,4 +955,106 @@ sub pmgr_quota_check {
     ddx $cpuReq, $memReq, $diskReq, $alloc;
     
     
+}
+
+# Send request to QEMU Guest Agent over ssh tunnel and return result as hash.
+# Using Net:^Openssh module instead of socat for performance and stability reasons
+
+sub pmgr_qagent_action_or_die { # TODO: saner tunnel and timeout implementation
+    
+    my $p = shift;
+    my $vmid = $p->{vmid};
+    my $node = $p->{node};
+    my $action = $p->{action};
+    my $nosync = $p->{nosync};
+    my $data = $p->{data};
+    
+    ddx $p;
+
+    my $aexec = {};
+    
+    if ( $action eq 'exec' ) {
+        my @cmd = split(/\s+/, $data->{cmd});
+        $aexec = {
+            execute => "guest-exec",
+            arguments => {
+                path => shift @cmd,
+                arg => \@cmd,
+                'capture-output' => JSON::true,
+            }
+        };
+        ddx encode_json($aexec);
+    }
+        
+    if ( $action eq 'exec-status' ) {
+        $aexec = {
+            execute => "guest-exec-status",
+            arguments => {
+                pid => int $data->{pid},
+            }
+        };
+        ddx encode_json($aexec);
+    }
+        
+    my $cmd = [<<'EOC'];
+local $| = 1;
+use IO::Socket::UNIX;
+my $sock = IO::Socket::UNIX->new(
+    Type => SOCK_STREAM(),
+    Peer => '/var/run/qemu-server/202.qga',
+);
+$sock->autoflush();
+EOC
+    if (!$nosync) {
+        push(@$cmd, <<'EOC');
+send( $sock, chr(255) , 0 );
+<$sock>;
+my $line = '{"execute":"guest-sync", "arguments":{"id":' . int( rand(10000) ) . "}}$/";
+send( $sock, $line , 0 );
+print 'Sync response: ' . <$sock>;
+EOC
+    }
+
+    push( @$cmd, q{send( $sock, '} . encode_json($aexec) . q{' . $/, 0 );} );
+    push( @$cmd, 'print "" . <$sock>;' );
+    
+    ddx $cmd;
+    $cmd = join($/, @$cmd);
+    ddx $cmd;
+    
+    my $ssh = Net::OpenSSH->new("root\@10.14.31.22");
+    $ssh->error and
+        die "Couldn't establish SSH connection: ". $ssh->error;
+    my ( $writer, $reader, $error, $pid ) =
+        $ssh->open3( 'perl' );
+    $ssh->error and
+        die "starting remote command failed: " . $ssh->error;
+    ddx $writer, $reader, $error, $pid;
+    
+    $writer->autoflush();
+    print $writer $cmd;
+    
+# Timeout is nesessary by QGA specification
+# But implementation should be more sane and without hardcode (TODO!)    
+    sleep 2;
+
+    $ssh->error and
+        die "operation didn't complete successfully: ". $ssh->error;
+        
+    close($writer);
+    
+    my @errors = <$error>;
+    die join( $/, @errors ) if @errors;
+    
+    my $result = [<$reader>];
+    
+    ddx $result->[0];
+    
+    my $result = decode_json( join( '', $result->[1] ) );
+    ddx $result;
+    
+    close($reader);
+    close($error);
+    
+    return $result;
 }
