@@ -28,7 +28,7 @@ use lib "$FindBin::Bin/../lib";
 use Net::Proxmox::VE;
 use Proc::Daemon;
 use Net::OpenSSH;
-use MIME::Base64;
+use Time::HiRes qw (sleep);
 
 use constant SRVHOME    => "$FindBin::Bin/..";
 use constant FRONT      => SRVHOME . "/front";
@@ -329,27 +329,7 @@ sub pmgr_api_request { # <API call>
         
     } elsif ($path eq '/api/qagentaction') {
         fork_call {
-            my $content = decode_json($req->content);
-            my $data = delete $content->{data};
-            pmgr_validate_or_die(values %$content, values %$data);
-            
-            my $execresult = pmgr_qagent_action_or_die( {
-                vmid => $content->{vmid},
-                node => $content->{node},
-                action => $content->{action},
-                data => $data,
-            } );
-            
-            if ( $content->{action} eq 'exec') {
-                sleep 2; # TODO Implement readiness check in loop instead of hardcoded timeout
-                my $statusresult = pmgr_qagent_action_or_die( {
-                    vmid => $content->{vmid},
-                    node => $content->{node},
-                    action => 'exec-status',
-                    data => { pid => $execresult->{return}{pid} },
-                } );
-                decode_base64($statusresult->{return}{'out-data'});
-            }
+            pmgr_qagent_action_or_die($req);
         } sub {
             pmgr_fiasco($req, $@) if $@;
             pmgr_success( $req, shift );
@@ -368,6 +348,7 @@ sub pmgr_api_request { # <API call>
     } else {
         pmgr_wrong_path($req);
     }
+    
 } # </API call>
 
 sub pmgr_http_respond {
@@ -960,42 +941,18 @@ sub pmgr_quota_check {
 # Send request to QEMU Guest Agent over ssh tunnel and return result as hash.
 # Using Net:^Openssh module instead of socat for performance and stability reasons
 
-sub pmgr_qagent_action_or_die { # TODO: saner tunnel and timeout implementation
+sub pmgr_qagent_query_or_die { # TODO: saner tunnel and timeout implementation
     
     my $p = shift;
     my $vmid = $p->{vmid};
     my $node = $p->{node};
-    my $action = $p->{action};
     my $nosync = $p->{nosync};
-    my $data = $p->{data};
     
-    ddx $p;
+    my $aQuery =  encode_json {
+        execute => $p->{command},
+        arguments => $p->{args},
+    };
 
-    my $aexec = {};
-    
-    if ( $action eq 'exec' ) {
-        my @cmd = split(/\s+/, $data->{cmd});
-        $aexec = {
-            execute => "guest-exec",
-            arguments => {
-                path => shift @cmd,
-                arg => \@cmd,
-                'capture-output' => JSON::true,
-            }
-        };
-        ddx encode_json($aexec);
-    }
-        
-    if ( $action eq 'exec-status' ) {
-        $aexec = {
-            execute => "guest-exec-status",
-            arguments => {
-                pid => int $data->{pid},
-            }
-        };
-        ddx encode_json($aexec);
-    }
-        
     my $cmd = [<<'EOC'];
 local $| = 1;
 use IO::Socket::UNIX;
@@ -1015,10 +972,9 @@ print 'Sync response: ' . <$sock>;
 EOC
     }
 
-    push( @$cmd, q{send( $sock, '} . encode_json($aexec) . q{' . $/, 0 );} );
+    push( @$cmd, q{send( $sock, '} . $aQuery . q{' . $/, 0 );} );
     push( @$cmd, 'print "" . <$sock>;' );
     
-    ddx $cmd;
     $cmd = join($/, @$cmd);
     ddx $cmd;
     
@@ -1029,14 +985,14 @@ EOC
         $ssh->open3( 'perl' );
     $ssh->error and
         die "starting remote command failed: " . $ssh->error;
-    ddx $writer, $reader, $error, $pid;
     
     $writer->autoflush();
     print $writer $cmd;
     
 # Timeout is nesessary by QGA specification
-# But implementation should be more sane and without hardcode (TODO!)    
-    sleep 2;
+# But implementation should be more sane and without hardcode (TODO!)
+ 
+#    sleep 0.5;
 
     $ssh->error and
         die "operation didn't complete successfully: ". $ssh->error;
@@ -1057,4 +1013,54 @@ EOC
     close($error);
     
     return $result;
+}
+
+sub pmgr_qagent_action_or_die {
+    
+    my ($req) = @_;
+    my $content = decode_json($req->content);
+    my $data = delete $content->{data};
+    my ($qCommand, $qArgs); # agent query parameters
+    
+    ddx $content;
+    ddx $data;
+    if ($content->{action} eq 'shellexec') {
+        pmgr_validate_or_die(values %$content);
+        
+        $qCommand = 'guest-exec';
+        $qArgs = {
+            path => 'sh',
+            arg => ['-c', $data->{cmd}],
+            'capture-output' => JSON::true,
+        };
+        
+    } else {
+        pmgr_validate_or_die(values %$content, values %$data);
+        $qCommand = $content->{action};
+        $qArgs = $data->{args};
+    }
+    
+    my $execresult = pmgr_qagent_query_or_die( {
+        vmid => $content->{vmid},
+        node => $content->{node},
+        command => $qCommand,
+        args => $qArgs,
+    } );
+    
+    if ( $qCommand eq 'guest-exec') {
+        my $statusresult;
+        
+        do {
+            sleep 0.1;
+            ddx 0.1;
+            $statusresult = pmgr_qagent_query_or_die( {
+                vmid => $content->{vmid},
+                node => $content->{node},
+                command => 'guest-exec-status',
+                args => { pid => int $execresult->{return}{pid} },
+            } );
+        } while ( !$statusresult->{return}{exited} );
+        
+        return $statusresult->{return}{'out-data'};
+    }
 }

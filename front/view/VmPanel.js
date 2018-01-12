@@ -6,7 +6,7 @@ Ext.define('PveMgr.view.VmPanel', {
     items: [
         {
             xtype: 'panel',
-            title: 'Запуск команд',
+            title: 'Консоль ОС',
             iconCls: 'x-fa fa-terminal',
             layout: 'border',
             items: [
@@ -16,13 +16,13 @@ Ext.define('PveMgr.view.VmPanel', {
                     autoScroll: true,
                     border: true,
                     margins: '5 5 5 5',
-                    bodyStyle: 'font-family: monospace; background-color: beige;',
+                    bodyCls: 'pvemgr-code',
+                    html: 'shell',
                 },{
                     region: 'south',
                     margins:'0 5 5 5',
                     border: false,
                     xtype: 'textfield',
-                    name: 'cmd',
                     value: '',
                     fieldStyle: 'font-family: monospace;',
                     allowBlank: true,
@@ -33,14 +33,28 @@ Ext.define('PveMgr.view.VmPanel', {
                             //~ refresh();
                         //~ },
                         specialkey: function(f, e, eOpts) {
-                            console.log(f.up().prevChild(f).getEl().setHtml("Запрос отправлен"));
+                            const codePalnel = f.up().prevChild(f);
                             if (e.getKey() === e.ENTER) {
-                                let cmd = f.getValue();
+                                const cmd = f.getValue();
+                                const text = codePalnel.body.dom.textContent
+                                           + '\nКоманда: ' + cmd + "\nЗапрос отправлен";
+                                codePalnel.update(text);
+                                const d = codePalnel.body.dom;
+                                d.scrollTop = d.scrollHeight - d.offsetHeight;
                                 f.setValue('');
-                                let vmrecord = f.lookupViewModel()
+                                const vmrecord = f.lookupViewModel()
                                     .get('record').getData();
-                                PveMgr.qagentAction(vmrecord, 'exec',
-                                    {cmd}, function(resp) {f.up().prevChild(f).getEl().setHtml(resp.msg)} );
+                                PveMgr.qagentAction(
+                                    vmrecord,
+                                    'shellexec',
+                                    {cmd},
+                                    function(resp) {
+                                        const out = Ext.util.Base64.decode(resp.msg);
+                                        const text = codePalnel.body.dom.textContent;
+                                        codePalnel.update(text + '\nSTDOUT:\n' + out);
+                                        d.scrollTop = d.scrollHeight - d.offsetHeight;
+                                    }
+                                );
                             } else if (e.getKey() === e.PAGE_UP) {
                                 textbox.scrollBy(0, -0.9*textbox.getHeight(), false);
                             } else if (e.getKey() === e.PAGE_DOWN) {

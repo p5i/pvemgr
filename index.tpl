@@ -40,6 +40,13 @@
             .x-btn-inner-default-small {
                 font-weight: 600;
             }
+            /* monospaced "pre" code */
+            .pvemgr-code {
+                font-family: monospace;
+                white-space: pre;
+                overflow: scroll;
+                background-color: beige;
+            }
             /*
             .pvemgr-vm-actioncolumn .x-action-col-icon{
                 font-size: 13;
