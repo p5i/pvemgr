@@ -77,7 +77,7 @@ $httpd->reg_cb (
     '/' => sub {
         my ($httpd, $req) = @_;
         $httpd->stop_request;
- 
+
         open my $fhIndex, '<', SRVHOME . '/index.tpl'
             or die "error opening index.tpl: $!";
         $req->respond ({
@@ -87,11 +87,11 @@ $httpd->reg_cb (
             ]
         });
     },
-    
+
     '/test' => sub {
         my ( $httpd, $req ) = @_;
         $httpd->stop_request;
- 
+
         ddx, $httpd->{condvar};
         #~ $httpd->{condvar}->send;
         ddx, $httpd->{condvar};
@@ -123,7 +123,7 @@ $httpd->reg_cb (
         $counter++;
         $testtimer3 = AnyEvent->timer (after => 7, cb => $cb);
     },
-    
+
     '/extjs' => sub {
         my ( $httpd, $req ) = @_;
         $httpd->stop_request;
@@ -137,7 +137,7 @@ $httpd->reg_cb (
             content => [mimetype($path), do {local $/; <$fh>}]
         });
     },
-    
+
     '/pvemgr' => sub {
         my ( $httpd, $req)  = @_;
         $httpd->stop_request;
@@ -151,26 +151,26 @@ $httpd->reg_cb (
             content => [mimetype($path), do {local $/; <$fh>}]
         });
     },
-    
+
     '' => sub {
         my ( $httpd, $req ) = @_;
         $httpd->stop_request;
         pmgr_wrong_path($req);
     },
-    
+
     '/api' => \&pmgr_api_request,
 ); # END OF $httpd->reg_cb
- 
+
 $httpd->run;
 
 
 sub pmgr_api_request { # <API call>
     $httpd->stop_request;
-    
+
     my ($httpd, $req) = @_;
     my $path = $req->url->path;
     my $pve;
-    
+
     ddx "Processing request " . $req->method . ' ' . $req->url
         ."; Client: $req->{host}:$req->{port}";
 
@@ -179,11 +179,11 @@ sub pmgr_api_request { # <API call>
         return;
     }
     if ($path =~ m{ /api/login/? }x) {
-        
+
         my $sid = 0;
         eval { $sid = pmgr_login($req) };
         ddx $@ if $@;
-        
+
         if ($@ || !$sid) {
             pmgr_fiasco($req, "Login Failed");
         } else {
@@ -196,7 +196,7 @@ sub pmgr_api_request { # <API call>
         my $sid = $cookies{pmgrLoginCookie}->value;
         my @session = grep { $_->{sid} eq $sid } @pmgrSessions;
         $pve = $session[0]->{pve};
-        
+
         eval {
             if ( $pve && $pve->check_login_ticket ) {
                 ddx 'GOOD TICKET'; #, 'version: ', $pve->api_version; 
@@ -209,7 +209,7 @@ sub pmgr_api_request { # <API call>
             pmgr_http_respond ( $req, '401', 'Login Failed' );
             return;
         }
-        
+
     } else {
         pmgr_http_respond ( $req, '401', 'Login Failed' );
         return;
@@ -237,19 +237,19 @@ sub pmgr_api_request { # <API call>
         } );
 
     } elsif ( $path eq '/api/vmdeploy' ) {
-        
+
         fork_call {
             my $content = decode_json($req->content);
             my $poolid = $content->{poolid} or die 'Не задан пул!';
-            
+
             #~ pmgr_pool_lock($poolid);
-            
+
             my @vms = @{ $content->{vms} };
-            
+
             pmgr_validate_or_die( map {%$_} @vms, $content->{poolid} );
-            
+
             my $pool = pmgr_poolresources( $pve, [$poolid] )->[0];
-            
+
             eval {
                 $pool->{quota} = pmgr_calc_pool_quota_or_die($pool);
             };
@@ -259,11 +259,11 @@ sub pmgr_api_request { # <API call>
 
             my $deployParams =
                 pmgr_vmdeploy_prepare_or_die( $pve, $content, $pool );
-            
+
             pmgr_quota_check(   $deployParams->{vms},
                                 $pool->{quota},
                                 $pool->{allocated} );
-            
+
             return @vms;
         } sub {
             my @vms = @_;
@@ -272,13 +272,13 @@ sub pmgr_api_request { # <API call>
                 my $msg = pmgr_vmsdeploy( $req, $pve, \@vms, sub {
                     # There whill be after deploy handlers
                 } );
-                
+
                 # Response on successful start of deploy (not finish)
                 pmgr_success($req, $msg);
             };
             pmgr_fiasco($req, $@) unless @_;
         }
-        
+
 
     } elsif ( $path eq '/api/vmaction' ) {
         my %params = $req->vars;
@@ -291,9 +291,9 @@ sub pmgr_api_request { # <API call>
         pmgr_respond( $req, pmgr_run_script($params) );
 
     } elsif ( $path eq '/api/cmd' ) {
-        
+
         my ($content, %params);
-        
+
         eval {
             $content = decode_json($req->content);
             %params = %{ $content->{params} };
@@ -326,7 +326,7 @@ sub pmgr_api_request { # <API call>
             pmgr_fiasco($req, $@) if $@;
             pmgr_success( $req, "Сохранено" );
         }
-        
+
     } elsif ($path eq '/api/qagentaction') {
         fork_call {
             pmgr_qagent_action_or_die($req);
@@ -348,7 +348,7 @@ sub pmgr_api_request { # <API call>
     } else {
         pmgr_wrong_path($req);
     }
-    
+
 } # </API call>
 
 sub pmgr_http_respond {
@@ -535,7 +535,7 @@ sub pmgr_vms {
     my ($pve) = @_;
 
     my $vms = $pve->get_cluster_resources( type => 'vm' );
-    
+
     foreach my $vm ( @{$vms} ) {
         $vm->{config} =
             $pve->get("/nodes/$vm->{node}/$vm->{id}/config"); 
@@ -690,23 +690,23 @@ sub pmgr_vmsdeploy {
     my $logfile = strftime( "%Y-%m-%d_%T", localtime )
                 . "-deploy.log";
     my @logfiles = ($logfile);
-    
+
     my $logfh;
     eval {
         open $logfh, '>', TASKLOGS.$logfile;
         say $logfh "deploying " . join( ', ', map { $_->{hostname} } @{$vms} );
     };
     pmgr_fiasco($req, $@) if $@;
-    
+
     my ( @started, @finished );
     foreach my $vm ( @{$vms} ) {
-        
+
         push @started, $vm;
-        
+
         my $vmlogfile = strftime("%Y-%m-%d_%T", localtime)
             . "-deploy-$vm->{vmid}-$vm->{hostname}.log";
         push @logfiles, $vmlogfile;
-        
+
         fork_call {
             pmgr_vmdeploy( $pve, $vm, $vmlogfile );
             return $vm;
@@ -717,7 +717,7 @@ sub pmgr_vmsdeploy {
                 say $logfh @_ ? "Finished deploying $_[0]->{vmid}" :  
                 push @finished, shift;
             }
-            
+
             if ( defined $callback ) {
                 $callback->({
                     error => $@,
@@ -727,7 +727,7 @@ sub pmgr_vmsdeploy {
                 });
             }
         };
-        
+
     }
 
     return "Журналы:\n" . join("\n", @logfiles);
@@ -748,14 +748,14 @@ sub pmgr_tasklogs {
                 push @files, {name => $file =~ s/\.[^.]+$//r};
             }
             return [ 'text/plain', encode_json(\@files) ];
-            
+
         } else {
             substr $path, 0, 0, TASKLOGS;
             open my $fh, '<', $path . '.log'
                 or die "error opening file $path: $!";
             return [ mimetype($path . '.log'), do {local $/; <$fh>} ];
         }
-        
+
     } sub {
         $callback->(shift);
     };
@@ -790,7 +790,7 @@ sub pmgr_poolresources {
     my $result = [];
 
     $poolids ||= [ map { $_->{poolid} } $pve->pools() ];
-    
+
     foreach my $poolid (@$poolids) {
         my $pool = $pve->get( "/pools/$poolid" );
         $pool->{poolid} = $poolid;
@@ -828,14 +828,14 @@ sub pmgr_vm {
     };
     my $vmres = pmgr_conf_to_resources( %{ $vm->{config} } );
     @{$vm}{ keys %$vmres } = values %$vmres;
-    
+
     return $vm;
 }
 
 sub pmgr_vm_totals {
     my @vms = @{ shift() };
     my %alloc;
-    
+
     $alloc{diskSize} = reduce { $a + $b } 0,
         map { $_->{diskSize} } @vms;
     $alloc{cpu} = reduce { $a + $b } 0,
@@ -845,7 +845,7 @@ sub pmgr_vm_totals {
     $alloc{vlans} = [ keys {
         map { $_, 1 }
         map { @{ $_->{vlans} } } @vms } ];
-    
+
     return \%alloc;
 }
 
@@ -869,7 +869,7 @@ sub pmgr_set_pool_quota_or_die {
 
 sub pmgr_wrong_path {
     my $req = shift;
-    
+
     ddx 'wrong path: ' . $req->url;
     $req->respond ([
         404, "Not Found",
@@ -880,7 +880,7 @@ sub pmgr_wrong_path {
 # Verify and fill given deploy parameters
 sub pmgr_vmdeploy_prepare_or_die {
     my ( $pve, $inparams, $pool ) = @_;
-    
+
     my @templates = keys {
         map { $_ => 1 }
         map { $_->{template} } @{ $inparams->{vms} }
@@ -934,20 +934,20 @@ sub pmgr_quota_check {
     my $diskReq = reduce { $a + $b } 0,
         map { $_->{diskSize} } @{ $vms };
     ddx $cpuReq, $memReq, $diskReq, $alloc;
-    
-    
+
+
 }
 
 # Send request to QEMU Guest Agent over ssh tunnel and return result as hash.
 # Using Net:^Openssh module instead of socat for performance and stability reasons
 
 sub pmgr_qagent_query_or_die { # TODO: saner tunnel and timeout implementation
-    
+
     my $p = shift;
     my $vmid = $p->{vmid};
     my $node = $p->{node};
     my $nosync = $p->{nosync};
-    
+
     my $aQuery =  encode_json {
         execute => $p->{command},
         arguments => $p->{args},
@@ -974,10 +974,10 @@ EOC
 
     push( @$cmd, q{send( $sock, '} . $aQuery . q{' . $/, 0 );} );
     push( @$cmd, 'print "" . <$sock>;' );
-    
+
     $cmd = join($/, @$cmd);
     ddx $cmd;
-    
+
     my $ssh = Net::OpenSSH->new("root\@10.14.31.22");
     $ssh->error and
         die "Couldn't establish SSH connection: ". $ssh->error;
@@ -985,71 +985,71 @@ EOC
         $ssh->open3( 'perl' );
     $ssh->error and
         die "starting remote command failed: " . $ssh->error;
-    
+
     $writer->autoflush();
     print $writer $cmd;
-    
+
 # Timeout is nesessary by QGA specification
 # But implementation should be more sane and without hardcode (TODO!)
- 
+
 #    sleep 0.5;
 
     $ssh->error and
         die "operation didn't complete successfully: ". $ssh->error;
-        
+
     close($writer);
-    
+
     my @errors = <$error>;
     die join( $/, @errors ) if @errors;
-    
+
     my $result = [<$reader>];
-    
+
     ddx $result->[0];
-    
+
     my $result = decode_json( join( '', $result->[1] ) );
     ddx $result;
-    
+
     close($reader);
     close($error);
-    
+
     return $result;
 }
 
 sub pmgr_qagent_action_or_die {
-    
+
     my ($req) = @_;
     my $content = decode_json($req->content);
     my $data = delete $content->{data};
     my ($qCommand, $qArgs); # agent query parameters
-    
+
     ddx $content;
     ddx $data;
     if ($content->{action} eq 'shellexec') {
         pmgr_validate_or_die(values %$content);
-        
+
         $qCommand = 'guest-exec';
         $qArgs = {
             path => 'sh',
             arg => ['-c', $data->{cmd}],
             'capture-output' => JSON::true,
         };
-        
+
     } else {
         pmgr_validate_or_die(values %$content, values %$data);
         $qCommand = $content->{action};
         $qArgs = $data->{args};
     }
-    
+
     my $execresult = pmgr_qagent_query_or_die( {
         vmid => $content->{vmid},
         node => $content->{node},
         command => $qCommand,
         args => $qArgs,
     } );
-    
+
     if ( $qCommand eq 'guest-exec') {
         my $statusresult;
-        
+
         do {
             sleep 0.1;
             ddx 0.1;
@@ -1060,7 +1060,7 @@ sub pmgr_qagent_action_or_die {
                 args => { pid => int $execresult->{return}{pid} },
             } );
         } while ( !$statusresult->{return}{exited} );
-        
+
         return $statusresult->{return}{'out-data'};
     }
 }

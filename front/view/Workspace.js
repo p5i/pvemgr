@@ -19,12 +19,12 @@ Ext.define('PveMgr.view.Workspace', {
             east: -10,
         },
     }, 
-    
+
     defaults: {
         collapsible: true,
         split: true,
     },
-    
+
     items:[
         {
             xtype: 'pvemgr.wsselector',
