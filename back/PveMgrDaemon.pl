@@ -329,7 +329,27 @@ sub pmgr_api_request { # <API call>
 
     } elsif ($path eq '/api/qagentaction') {
         fork_call {
-            pmgr_qagent_action_or_die($req);
+            my $content = decode_json($req->content);
+            my $data = delete $content->{data};
+            my ($qCommand, $qArgs); 
+
+            if ($content->{action} eq 'shellexec') {
+                pmgr_validate_or_die(values %$content);
+                $qCommand = 'guest-exec';
+                $qArgs = {
+                    path => 'sh',
+                    arg => ['-c', $data->{cmd}],
+                    'capture-output' => JSON::true,
+                };
+
+            } else {
+                pmgr_validate_or_die(values %$content, values %$data);
+                $qCommand = $content->{action};
+                $qArgs = $data->{args};
+            }
+            my $nodeip =  pmgr_node($pve, 'pve22')->{ip};
+            ddx $nodeip;
+            pmgr_qagent_exec_or_die($nodeip, $content->{vmid}, $qCommand, $qArgs);
         } sub {
             pmgr_fiasco($req, $@) if $@;
             pmgr_success( $req, shift );
@@ -945,7 +965,7 @@ sub pmgr_qagent_query_or_die { # TODO: saner tunnel and timeout implementation
 
     my $p = shift;
     my $vmid = $p->{vmid};
-    my $node = $p->{node};
+    my $nodeip = $p->{nodeip};
     my $nosync = $p->{nosync};
 
     my $aQuery =  encode_json {
@@ -978,7 +998,7 @@ EOC
     $cmd = join($/, @$cmd);
     ddx $cmd;
 
-    my $ssh = Net::OpenSSH->new("root\@10.14.31.22");
+    my $ssh = Net::OpenSSH->new("root\@$nodeip");
     $ssh->error and
         die "Couldn't establish SSH connection: ". $ssh->error;
     my ( $writer, $reader, $error, $pid ) =
@@ -1015,52 +1035,35 @@ EOC
     return $result;
 }
 
-sub pmgr_qagent_action_or_die {
+sub pmgr_qagent_exec_or_die {
 
-    my ($req) = @_;
-    my $content = decode_json($req->content);
-    my $data = delete $content->{data};
-    my ($qCommand, $qArgs); # agent query parameters
+    my ($nodeip, $vmid, $command, $args) = @_;
 
-    ddx $content;
-    ddx $data;
-    if ($content->{action} eq 'shellexec') {
-        pmgr_validate_or_die(values %$content);
-
-        $qCommand = 'guest-exec';
-        $qArgs = {
-            path => 'sh',
-            arg => ['-c', $data->{cmd}],
-            'capture-output' => JSON::true,
-        };
-
-    } else {
-        pmgr_validate_or_die(values %$content, values %$data);
-        $qCommand = $content->{action};
-        $qArgs = $data->{args};
-    }
 
     my $execresult = pmgr_qagent_query_or_die( {
-        vmid => $content->{vmid},
-        node => $content->{node},
-        command => $qCommand,
-        args => $qArgs,
+        vmid => $vmid,
+        nodeip => $nodeip,
+        command => $command,
+        args => $args,
     } );
 
-    if ( $qCommand eq 'guest-exec') {
-        my $statusresult;
+    my $statusresult;
+    do {
+        sleep 0.1;
+        $statusresult = pmgr_qagent_query_or_die( {
+            vmid => $vmid,
+            nodeip => $nodeip,
+            command => 'guest-exec-status',
+            args => { pid => int $execresult->{return}{pid} },
+        } );
+    } while ( !$statusresult->{return}{exited} );
 
-        do {
-            sleep 0.1;
-            ddx 0.1;
-            $statusresult = pmgr_qagent_query_or_die( {
-                vmid => $content->{vmid},
-                node => $content->{node},
-                command => 'guest-exec-status',
-                args => { pid => int $execresult->{return}{pid} },
-            } );
-        } while ( !$statusresult->{return}{exited} );
+    return $statusresult->{return}{'out-data'};
+}
 
-        return $statusresult->{return}{'out-data'};
-    }
+sub pmgr_node {
+    my ( $pve, $node ) = @_;
+    my $nodes = $pve->get('/cluster/status');
+    my @node = grep { $_->{name} eq $node } @$nodes;
+    return $node[0];
 }
