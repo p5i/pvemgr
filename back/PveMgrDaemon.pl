@@ -178,6 +178,8 @@ sub pmgr_api_request { # <API call>
         pmgr_realms($req);
         return;
     }
+    
+    # <Authentication>
     if ($path =~ m{ /api/login/? }x) {
 
         my $sid = 0;

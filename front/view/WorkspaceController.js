@@ -25,6 +25,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
                 me.getViewModel().set( 'loggedUser', value );
             }
         } );
+        me.getViewModel().set( 'loggedUser', sp.get('loggedUser') );
     }, // </init>
 
 
