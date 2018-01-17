@@ -5,6 +5,7 @@ use common::sense;
 # <DEBUGS>
 use Data::Dump qw/pp dd ddx/;
 $Data::Dump::INDENT = "| ";
+use Carp;
 $| = 1;
 # </DEBUGS>
 
@@ -40,6 +41,7 @@ use constant PMGR_USER    => 'pvemgr';
 use constant PMGR_GROUP    => 'pvemgr';
 use constant PMGR_HOME    => '/var/lib/pvemgr';
 use constant PMGR_LOGDIR    => PMGR_HOME . '/logs/';
+use constant PMGR_SERVICE_PW_FILE    => PMGR_HOME . '/.priv/pvemgr';
 
 # switching to pvemgr UID
 my $uid = getpwnam(PMGR_USER);
@@ -62,6 +64,7 @@ my $pvehost     = '10.14.31.21';
 my $pvedebug    = 1;
 my $pverealm    = 'pam'; # 'pve' or 'pam'
 my $pve;
+my $pveservice;
 
 my @pmgrSessions = ();
 
@@ -159,6 +162,7 @@ $httpd->reg_cb (
     },
 
     '/api' => \&pmgr_api_request,
+    '/api-debug' => \&pmgr_api_request,
 ); # END OF $httpd->reg_cb
 
 $httpd->run;
@@ -169,18 +173,28 @@ sub pmgr_api_request { # <API call>
 
     my ($httpd, $req) = @_;
     my $path = $req->url->path;
-    my $pve;
+    my ($pve, $PMGR_APIDEBUG);
+
 
     ddx "Processing request " . $req->method . ' ' . $req->url
         ."; Client: $req->{host}:$req->{port}";
 
-    if ($path =~ m{ /api/realms/?$ }x) {
+    ddx $path;
+
+    if ($path =~ m{ ^/api-debug/ }x) {
+        $path =~ s|^/api-debug/|/api/|;
+        $PMGR_APIDEBUG = 1;
+    }
+
+    ddx $path;
+
+    if ($path =~ m{ ^/api/realms/?$ }x) {
         pmgr_realms($req);
         return;
     }
-    
+
     # <Authentication>
-    if ($path =~ m{ /api/login/? }x) {
+    if ($path =~ m{ ^/api/login/? }x) {
 
         my $sid = 0;
         eval { $sid = pmgr_login($req) };
@@ -196,8 +210,8 @@ sub pmgr_api_request { # <API call>
         require CGI::Cookie;
         my %cookies = parse CGI::Cookie($cookie);
         my $sid = $cookies{pmgrLoginCookie}->value;
-        my @session = grep { $_->{sid} eq $sid } @pmgrSessions;
-        $pve = $session[0]->{pve};
+        my ($session) = grep { $_->{sid} eq $sid } @pmgrSessions;
+        $pve = $session->{pve};
 
         eval {
             if ( $pve && $pve->check_login_ticket ) {
@@ -331,12 +345,16 @@ sub pmgr_api_request { # <API call>
 
     } elsif ($path eq '/api/qagentaction') {
         fork_call {
+            local $SIG{__DIE__} = \&Carp::confess if $PMGR_APIDEBUG;
             my $content = decode_json($req->content);
             my $data = delete $content->{data};
-            my ($qCommand, $qArgs); 
+            my ($qCommand, $qArgs);
 
             if ($content->{action} eq 'shellexec') {
                 pmgr_validate_or_die(values %$content);
+
+                ddx pmgr_vm_privileges_get($pve, $content->{vmid});
+
                 $qCommand = 'guest-exec';
                 $qArgs = {
                     path => 'sh',
@@ -349,9 +367,11 @@ sub pmgr_api_request { # <API call>
                 $qCommand = $content->{action};
                 $qArgs = $data->{args};
             }
+
             my $nodeip =  pmgr_node($pve, 'pve22')->{ip};
-            ddx $nodeip;
+
             pmgr_qagent_exec_or_die($nodeip, $content->{vmid}, $qCommand, $qArgs);
+
         } sub {
             pmgr_fiasco($req, $@) if $@;
             pmgr_success( $req, shift );
@@ -388,7 +408,7 @@ sub pmgr_fiasco {
         success => 0,
         errorMsg => "Server Error:\n$err",
     };
-    ddx $err;
+    print __LINE__ .  ":$/$err$/";
     ddx "Fiasco! " . $req->method . ' ' . $req->url
         ."; Client: $req->{host}:$req->{port}";
     pmgr_respond($req, $resp);
@@ -640,7 +660,6 @@ sub pmgr_vmaction {
         };
         return (@outs);
     } sub {
-        ddx @_;
         my ($stdout, $stderr, $res) = @_;
         unless ($res) {
             map {s/^CSRFPreventionToken: .*//m} ($stdout, $stderr);
@@ -834,20 +853,24 @@ sub pmgr_poolresources {
 # Takes hash refeerence defining vm and
 # returns vm hash reference filled with data
 # $pve is optional, depending on pasased vm properties
+# on failure to get vm data, returns undef
 sub pmgr_vm {
     my ($vm, $pve ) = @_;
+
     if( !$vm->{node} ) {
-        #~ my @vm0 =  grep { $_->{vmid} eq $vm->{vmid} }
-                #~ $pve->get_cluster_resources( type => 'vm' );
-        #~ ddx \@vm0;
-        $vm = shift [
-                grep { $_->{vmid} eq $vm->{vmid} }
-                $pve->get_cluster_resources( type => 'vm' ) ];
+        ($vm) = grep { $_->{vmid} eq $vm->{vmid} }
+                $pve->get_cluster_resources( type => 'vm' );
     };
+
+    if ( !$vm || !$vm->{node} || $vm->{id} ) {
+        return;
+    }
+
     if( !$vm->{config} ) {
         $vm->{config} = $pve->get(
                 "/nodes/$vm->{node}/$vm->{id}/config" );
     };
+
     my $vmres = pmgr_conf_to_resources( %{ $vm->{config} } );
     @{$vm}{ keys %$vmres } = values %$vmres;
 
@@ -998,7 +1021,6 @@ EOC
     push( @$cmd, 'print "" . <$sock>;' );
 
     $cmd = join($/, @$cmd);
-    ddx $cmd;
 
     my $ssh = Net::OpenSSH->new("root\@$nodeip");
     $ssh->error and
@@ -1026,10 +1048,7 @@ EOC
 
     my $result = [<$reader>];
 
-    ddx $result->[0];
-
     my $result = decode_json( join( '', $result->[1] ) );
-    ddx $result;
 
     close($reader);
     close($error);
@@ -1040,7 +1059,6 @@ EOC
 sub pmgr_qagent_exec_or_die {
 
     my ($nodeip, $vmid, $command, $args) = @_;
-
 
     my $execresult = pmgr_qagent_query_or_die( {
         vmid => $vmid,
@@ -1066,6 +1084,93 @@ sub pmgr_qagent_exec_or_die {
 sub pmgr_node {
     my ( $pve, $node ) = @_;
     my $nodes = $pve->get('/cluster/status');
-    my @node = grep { $_->{name} eq $node } @$nodes;
-    return $node[0];
+
+# User may not have privileges to access /cluster/status
+# One solution is generate special service user
+# Other solution is to read node data over ssh
+# Using latter. Could be changed later
+
+    if ($nodes) {
+        my @node = grep { $_->{name} eq $node } @$nodes;
+        return $node[0];
+    } else {
+        my $ssh = Net::OpenSSH->new("root\@$pvehost");
+        $nodes = $ssh->capture('cat /etc/pve/.members');
+
+        $nodes =~ s/\n//g;
+        $nodes = decode_json($nodes);
+
+        return $nodes->{nodelist}{$node};
+    }
+}
+
+# Work in Progress
+sub pmgr_vm_privileges_get {
+    my ($pve, $vmid) = @_;
+
+    ddx $vmid;
+    my $poolid = pmgr_vm( {vmid => $vmid}, $pve )->{pool};
+    my @aclpaths = ("/vms/$vmid", "/pool/$poolid", '/');
+    my $uid = $pve->{ticket}{username};
+    my @privs;
+
+    pmgr_service_login() if !$pveservice;
+
+    my $groups = $pveservice->get_access_users($uid)->{groups};
+
+    my @acls = $pveservice->get_access_acl();
+
+    my @userAcls = grep
+            { $_->{type} eq 'user' and $_->{ugid} eq $uid }
+            @acls;
+
+    my @groupAcls = grep {
+        my $ugid = $_->{ugid};
+        $_->{type} eq 'group' and grep { $_ eq $ugid } @$groups; 
+    } @acls;
+
+    @acls = (@userAcls, @groupAcls);
+    ddx @userAcls;
+    ddx @groupAcls;
+    ddx @acls;
+
+    @acls = grep {
+        my $path = $_->{path};
+        grep { $path eq $_ } @aclpaths;
+    } @acls;
+
+    ddx @acls;
+
+    my @roles = map { $_->{roleid} } @acls;
+
+    my @roleprivs = $pveservice->access_roles();
+
+    foreach my $rolepriv (@roleprivs) {
+        if ( grep { $rolepriv->{roleid} eq $_ } @roles ) {
+            push( @privs, split(',', $rolepriv->{privs}) );
+        }
+    }
+
+    @privs = keys { map { $_ => 1 } @privs };
+
+}
+
+sub pmgr_service_login {
+    open my $fh, '<', PMGR_SERVICE_PW_FILE or die "Can't open file $!";
+    my $pw = <$fh>;
+    chomp $pw;
+
+    $pveservice = Net::Proxmox::VE->new(
+        host     => $pvehost,
+        username => 'pvemgr',
+        password => $pw,
+        debug    => $pvedebug,
+        realm    => 'pve',
+        ssl_opts => {
+            SSL_verify_mode => 0,
+            verify_hostname => 0
+        },
+    );
+
+    $pveservice->login;
 }

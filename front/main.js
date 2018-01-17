@@ -50,6 +50,10 @@ Ext.application({
     //stores: ['PveMgr.data.Vms'],
     
     init: function() {
+
+        if (window.location.hash === '#APIDEBUG') PveMgr.APIDEBUG = true;
+
+        var urlapi = PveMgr.APIDEBUG ? '/api-debug' : '/api';
         
         Ext.state.Manager.setProvider(new Ext.state.CookieProvider());
         
@@ -117,7 +121,7 @@ Ext.application({
             Ext.toast( message, title, align, iconcls );
         };
         PveMgr.qagentAction = function(vm, action, data, callback) {
-            PveMgr.req( 'api/qagentaction', {
+            PveMgr.req( urlapi + '/qagentaction', {
                 action,
                 data,
                 vmid: vm.vmid,
@@ -195,5 +199,3 @@ Ext.application({
         },
     },
 });
-
-
