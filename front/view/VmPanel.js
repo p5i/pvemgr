@@ -49,9 +49,17 @@ Ext.define('PveMgr.view.VmPanel', {
                                     'shellexec',
                                     {cmd},
                                     function(resp) {
-                                        const out = Ext.util.Base64.decode(resp.msg);
-                                        const text = codePalnel.body.dom.textContent;
-                                        codePalnel.update(text + '\nSTDOUT:\n' + out);
+                                        let text = codePalnel.body.dom.textContent;
+                                        console.log(resp.data.return['out-data']);
+                                        if (resp.data.return['out-data']) {
+                                            const out = Ext.util.Base64.decode(resp.data.return['out-data']);
+                                            text += '\nSTDOUT:\n' + out;
+                                        }
+                                        if (resp.data.return['err-data']) {
+                                            const err = Ext.util.Base64.decode(resp.data.return['err-data']);
+                                            text += '\nSTDERR:\n' + err;
+                                        }
+                                        codePalnel.update(text);
                                         d.scrollTop = d.scrollHeight - d.offsetHeight;
                                     }
                                 );

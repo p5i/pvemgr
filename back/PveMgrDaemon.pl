@@ -353,7 +353,9 @@ sub pmgr_api_request { # <API call>
             if ($content->{action} eq 'shellexec') {
                 pmgr_validate_or_die(values %$content);
 
-                ddx pmgr_vm_privileges_get($pve, $content->{vmid});
+                my @privs = pmgr_vm_privileges_get($pve, $content->{vmid});
+                die "Access Denied" if !grep(/^VM.Console$/, @privs)
+                                    or !grep(/^VM.Monitor$/, @privs);
 
                 $qCommand = 'guest-exec';
                 $qArgs = {
@@ -368,7 +370,7 @@ sub pmgr_api_request { # <API call>
                 $qArgs = $data->{args};
             }
 
-            my $nodeip =  pmgr_node($pve, 'pve22')->{ip};
+            my $nodeip =  pmgr_node($pve, $content->{node})->{ip};
 
             pmgr_qagent_exec_or_die($nodeip, $content->{vmid}, $qCommand, $qArgs);
 
@@ -408,9 +410,11 @@ sub pmgr_fiasco {
         success => 0,
         errorMsg => "Server Error:\n$err",
     };
-    print __LINE__ .  ":$/$err$/";
+    
     ddx "Fiasco! " . $req->method . ' ' . $req->url
         ."; Client: $req->{host}:$req->{port}";
+    print "$err$/";
+
     pmgr_respond($req, $resp);
 }
 
@@ -862,7 +866,7 @@ sub pmgr_vm {
                 $pve->get_cluster_resources( type => 'vm' );
     };
 
-    if ( !$vm || !$vm->{node} || $vm->{id} ) {
+    if ( !$vm || !$vm->{node} || !$vm->{id} ) {
         return;
     }
 
@@ -1003,7 +1007,7 @@ local $| = 1;
 use IO::Socket::UNIX;
 my $sock = IO::Socket::UNIX->new(
     Type => SOCK_STREAM(),
-    Peer => '/var/run/qemu-server/202.qga',
+    Peer => '/var/run/qemu-server/_VMID_PLACEHOLDER_.qga',
 );
 $sock->autoflush();
 EOC
@@ -1021,6 +1025,8 @@ EOC
     push( @$cmd, 'print "" . <$sock>;' );
 
     $cmd = join($/, @$cmd);
+    
+    $cmd =~ s/_VMID_PLACEHOLDER_/$vmid/;
 
     my $ssh = Net::OpenSSH->new("root\@$nodeip");
     $ssh->error and
@@ -1060,6 +1066,7 @@ sub pmgr_qagent_exec_or_die {
 
     my ($nodeip, $vmid, $command, $args) = @_;
 
+    print $args;
     my $execresult = pmgr_qagent_query_or_die( {
         vmid => $vmid,
         nodeip => $nodeip,
@@ -1078,7 +1085,7 @@ sub pmgr_qagent_exec_or_die {
         } );
     } while ( !$statusresult->{return}{exited} );
 
-    return $statusresult->{return}{'out-data'};
+    $statusresult;
 }
 
 sub pmgr_node {
@@ -1104,17 +1111,19 @@ sub pmgr_node {
     }
 }
 
-# Work in Progress
 sub pmgr_vm_privileges_get {
     my ($pve, $vmid) = @_;
 
-    ddx $vmid;
-    my $poolid = pmgr_vm( {vmid => $vmid}, $pve )->{pool};
+    unless ($pveservice && $pveservice->check_login_ticket) {
+        pmgr_service_login();
+    }
+
+    my $vm = pmgr_vm( {vmid => $vmid}, $pveservice )
+        or die "Can't get VM data";
+    my $poolid = $vm->{pool};
     my @aclpaths = ("/vms/$vmid", "/pool/$poolid", '/');
     my $uid = $pve->{ticket}{username};
     my @privs;
-
-    pmgr_service_login() if !$pveservice;
 
     my $groups = $pveservice->get_access_users($uid)->{groups};
 
@@ -1130,29 +1139,22 @@ sub pmgr_vm_privileges_get {
     } @acls;
 
     @acls = (@userAcls, @groupAcls);
-    ddx @userAcls;
-    ddx @groupAcls;
-    ddx @acls;
 
     @acls = grep {
         my $path = $_->{path};
         grep { $path eq $_ } @aclpaths;
     } @acls;
 
-    ddx @acls;
-
     my @roles = map { $_->{roleid} } @acls;
 
     my @roleprivs = $pveservice->access_roles();
-
     foreach my $rolepriv (@roleprivs) {
         if ( grep { $rolepriv->{roleid} eq $_ } @roles ) {
             push( @privs, split(',', $rolepriv->{privs}) );
         }
     }
 
-    @privs = keys { map { $_ => 1 } @privs };
-
+    @privs = keys { map {$_ => 1} @privs };
 }
 
 sub pmgr_service_login {
