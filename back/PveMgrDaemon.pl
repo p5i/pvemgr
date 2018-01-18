@@ -712,11 +712,16 @@ sub pmgr_cmd {
     my $logfile = strftime("%Y-%m-%d_%H-%M-%S", localtime);
     my ($ runcmd, $vmid );
     if ( $cmd eq 'getaddress' ) {
-        my $nodes = $pve->get('/cluster/status');
+
+        unless ($pveservice && $pveservice->check_login_ticket) {
+            pmgr_service_login();
+        }
+
+        my $nodes = $pveservice->get('/cluster/status');
         my @node = grep {$_->{name} eq $params->{node}} @$nodes;
         $vmid = $params->{vmid};
         $runcmd = "ssh -vv root@" . $node[0]{ip}
-            . ' "bash -s" < ./scripts/agent_ip.sh ' . $vmid;
+            . ' "bash -s" < ' . SCRIPTS . "/agent_ip.sh $vmid";
         $logfile .= "-ip-$vmid";
     } else {
         pmgr_fiasco( $req, "Неизвестная команда: $cmd" );
@@ -1021,11 +1026,12 @@ print 'Sync response: ' . <$sock>;
 EOC
     }
 
-    push( @$cmd, q{send( $sock, '} . $aQuery . q{' . $/, 0 );} );
+    $aQuery =~ s/[#\\]/\\$&/g; # escape '\' and '#' in order for quoting to work properly  
+    push( @$cmd, q{send( $sock, q#} . $aQuery . q{# . $/, 0 );} );
     push( @$cmd, 'print "" . <$sock>;' );
 
     $cmd = join($/, @$cmd);
-    
+
     $cmd =~ s/_VMID_PLACEHOLDER_/$vmid/;
 
     my $ssh = Net::OpenSSH->new("root\@$nodeip");
@@ -1054,6 +1060,7 @@ EOC
 
     my $result = [<$reader>];
 
+    ddx $result;
     my $result = decode_json( join( '', $result->[1] ) );
 
     close($reader);
@@ -1066,7 +1073,12 @@ sub pmgr_qagent_exec_or_die {
 
     my ($nodeip, $vmid, $command, $args) = @_;
 
-    print $args;
+    # Timeout can be implemented better; TODO
+    local $SIG{ALRM} = sub {
+        die "Qemu Agent execution timeout";
+    };
+    alarm 20;
+
     my $execresult = pmgr_qagent_query_or_die( {
         vmid => $vmid,
         nodeip => $nodeip,
@@ -1074,16 +1086,21 @@ sub pmgr_qagent_exec_or_die {
         args => $args,
     } );
 
+    return $execresult if $execresult->{error};
+
     my $statusresult;
     do {
         sleep 0.1;
+
         $statusresult = pmgr_qagent_query_or_die( {
             vmid => $vmid,
             nodeip => $nodeip,
             command => 'guest-exec-status',
             args => { pid => int $execresult->{return}{pid} },
         } );
-    } while ( !$statusresult->{return}{exited} );
+
+    } until ( $statusresult->{return}{exited}
+            || $statusresult->{error} );
 
     $statusresult;
 }
