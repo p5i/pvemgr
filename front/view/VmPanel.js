@@ -27,51 +27,7 @@ Ext.define('PveMgr.view.VmPanel', {
                     fieldStyle: 'font-family: monospace;',
                     allowBlank: true,
                     listeners: {
-                        specialkey: function(f, e, eOpts) {
-                            const codePalnel = f.up().prevChild(f);
-                            if (e.getKey() === e.ENTER) {
-                                const cmd = f.getValue();
-                                const text = codePalnel.body.dom.textContent
-                                           + '\nКоманда: ' + cmd + "\nЗапрос отправлен";
-                                codePalnel.update(text);
-                                const d = codePalnel.body.dom;
-                                d.scrollTop = d.scrollHeight - d.offsetHeight;
-                                f.setValue('');
-                                const vmrecord = f.lookupViewModel()
-                                    .get('record').getData();
-                                PveMgr.qagentAction(
-                                    vmrecord,
-                                    'shellexec',
-                                    {cmd},
-                                    function(resp) {
-                                        let text = codePalnel.body.dom.textContent;
-                                        if (resp.success) {
-                                            if (resp.data.error) {
-                                                text += '\nQEMU Agent error:\n' + Ext.encode(resp.data.error);
-                                            }
-                                            if (resp.data.return && resp.data.return['out-data']) {
-                                                const out = Ext.util.Base64.decode(resp.data.return['out-data']);
-                                                text += '\nSTDOUT:\n' + out;
-                                            }
-                                            if (resp.data.return && resp.data.return['err-data']) {
-                                                const err = Ext.util.Base64.decode(resp.data.return['err-data']);
-                                                text += '\nSTDERR:\n' + err;
-                                            }
-                                            codePalnel.update(text);
-                                            d.scrollTop = d.scrollHeight - d.offsetHeight;
-                                        } else if (resp.err) {
-                                            PveMgr.toast(resp.err.message, "Ошибка");
-                                        } else {
-                                            PveMgr.toast('Неопределённая ошибка', 'Ошибка');
-                                        }
-                                    }
-                                );
-                            } else if (e.getKey() === e.PAGE_UP) {
-                                textbox.scrollBy(0, -0.9*textbox.getHeight(), false);
-                            } else if (e.getKey() === e.PAGE_DOWN) {
-                                textbox.scrollBy(0, 0.9*textbox.getHeight(), false);
-                            }
-                        }
+                        specialkey: 'vmPanelShellKey',
                     },
                     width: '100%',
                 },

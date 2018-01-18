@@ -340,7 +340,58 @@ Ext.define('PveMgr.view.WorkspaceController', {
         }
         store.clearFilter();
     },
+
+    vmAgentShellExec: function (inFld, outPanel) {
+        
+        const cmd = inFld.getValue();
+        const text = outPanel.body.dom.textContent
+                   + '\nКоманда: ' + cmd + "\nЗапрос отправлен";
+        outPanel.update(text);
+        const d = outPanel.body.dom;
+        d.scrollTop = d.scrollHeight - d.offsetHeight;
+        inFld.setValue('');
+        const vmrecord = inFld.lookupViewModel()
+            .get('record').getData();
+        PveMgr.qagentAction(
+            vmrecord,
+            'shellexec',
+            {cmd},
+            function(resp) {
+                let text = outPanel.body.dom.textContent;
+                if (resp.success) {
+                    if (resp.data.error) {
+                        text += '\nQEMU Agent error:\n' + Ext.encode(resp.data.error);
+                    }
+                    if (resp.data.return && resp.data.return['out-data']) {
+                        const out = Ext.util.Base64.decode(resp.data.return['out-data']);
+                        text += '\nSTDOUT:\n' + out;
+                    }
+                    if (resp.data.return && resp.data.return['err-data']) {
+                        const err = Ext.util.Base64.decode(resp.data.return['err-data']);
+                        text += '\nSTDERR:\n' + err;
+                    }
+                    outPanel.update(text);
+                    d.scrollTop = d.scrollHeight - d.offsetHeight;
+                } else if (resp.err) {
+                    PveMgr.toast(resp.err.message, "Ошибка");
+                } else {
+                    PveMgr.toast('Неопределённая ошибка', 'Ошибка');
+                }
+            }
+        );
+    },
     
+    vmPanelShellKey: function(inFld, e, eOpts) {
+        if (e.getKey() === e.ENTER) {
+            const codePalnel = inFld.up().prevChild(inFld);
+            this.vmAgentShellExec(inFld, codePalnel);
+        } else if (e.getKey() === e.PAGE_UP) {
+            textbox.scrollBy(0, -0.9*textbox.getHeight(), false);
+        } else if (e.getKey() === e.PAGE_DOWN) {
+            textbox.scrollBy(0, 0.9*textbox.getHeight(), false);
+        }
+    },
+
     test: function() {
         let vmGrid = this.lookupReference('vmGrid');
         let selection = vmGrid.getSelection();
