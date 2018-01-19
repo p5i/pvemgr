@@ -1077,7 +1077,7 @@ sub pmgr_qagent_exec_or_die {
     local $SIG{ALRM} = sub {
         die "Qemu Agent execution timeout";
     };
-    alarm 20;
+    alarm 600; # TODO: Configure and modify parameter
 
     my $execresult = pmgr_qagent_query_or_die( {
         vmid => $vmid,
@@ -1102,6 +1102,8 @@ sub pmgr_qagent_exec_or_die {
     } until ( $statusresult->{return}{exited}
             || $statusresult->{error} );
 
+    alarm 0;
+    
     $statusresult;
 }
 

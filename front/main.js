@@ -59,6 +59,7 @@ Ext.application({
         
         PveMgr.req = function(url, data, callback) {
             Ext.Ajax.request({
+                timeout: 900000, // TODO: Configure and modify request parameters
                 url: url,
                 jsonData: data,
                 success: function(resp, opts) {
