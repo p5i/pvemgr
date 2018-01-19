@@ -370,6 +370,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
                         const err = Ext.util.Base64.decode(resp.data.return['err-data']);
                         text += '\nSTDERR:\n' + err;
                     }
+                    text += '\nКоманда: "' + cmd + '" Завершена';
                     outPanel.update(text);
                     d.scrollTop = d.scrollHeight - d.offsetHeight;
                 } else if (resp.err) {

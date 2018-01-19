@@ -995,7 +995,11 @@ sub pmgr_quota_check {
 # Send request to QEMU Guest Agent over ssh tunnel and return result as hash.
 # Using Net:^Openssh module instead of socat for performance and stability reasons
 
-sub pmgr_qagent_query_or_die { # TODO: saner tunnel and timeout implementation
+# TODO: saner tunnel and timeout implementation
+# TODO: accounting and logging of forked processes,
+#       so they can be monitored and stopped
+
+sub pmgr_qagent_query_or_die {
 
     my $p = shift;
     my $vmid = $p->{vmid};
@@ -1006,6 +1010,8 @@ sub pmgr_qagent_query_or_die { # TODO: saner tunnel and timeout implementation
         execute => $p->{command},
         arguments => $p->{args},
     };
+    
+    ddx 'Sending agent command', $aQuery;
 
     my $cmd = [<<'EOC'];
 local $| = 1;
@@ -1016,6 +1022,8 @@ my $sock = IO::Socket::UNIX->new(
 );
 $sock->autoflush();
 EOC
+    $cmd->[0] =~ s/_VMID_PLACEHOLDER_/$vmid/;
+
     if (!$nosync) {
         push(@$cmd, <<'EOC');
 send( $sock, chr(255) , 0 );
@@ -1032,33 +1040,47 @@ EOC
 
     $cmd = join($/, @$cmd);
 
-    $cmd =~ s/_VMID_PLACEHOLDER_/$vmid/;
 
-    my $ssh = Net::OpenSSH->new("root\@$nodeip");
-    $ssh->error and
-        die "Couldn't establish SSH connection: ". $ssh->error;
-    my ( $writer, $reader, $error, $pid ) =
-        $ssh->open3( 'perl' );
-    $ssh->error and
-        die "starting remote command failed: " . $ssh->error;
+    my ($result, $writer, $reader, $error, $pid);
+    {
+        # Timeout can be implemented better; TODO
+        local $SIG{ALRM} = sub {
+            die "Qemu Agent execution timeout";
+        };
+        alarm 30; # TODO: Configure and modify parameter
 
-    $writer->autoflush();
-    print $writer $cmd;
+        my $ssh = Net::OpenSSH->new("root\@$nodeip");
+        $ssh->error and
+            die "Couldn't establish SSH connection: ". $ssh->error;
+        ( $writer, $reader, $error, $pid ) =
+            $ssh->open3( 'perl' );
+        $ssh->error and
+            die "starting remote command failed: " . $ssh->error;
 
-# Timeout is nesessary by QGA specification
-# But implementation should be more sane and without hardcode (TODO!)
+        $writer->autoflush();
+        print $writer $cmd;
 
-#    sleep 0.5;
+        # Timeout is nesessary according to QGA specification
+        # https://wiki.qemu.org/Features/GuestAgent#QEMU_Guest_Agent_Protocol
+        # But implementation should be more sane and without hardcode (TODO!)
 
-    $ssh->error and
-        die "operation didn't complete successfully: ". $ssh->error;
+        #    sleep 0.5;
 
-    close($writer);
+        $ssh->error and
+            die "operation didn't complete successfully: ". $ssh->error;
 
-    my @errors = <$error>;
-    die join( $/, @errors ) if @errors;
+        close($writer);
 
-    my $result = [<$reader>];
+        # Experemental error output handling
+        # Probably not proper reason to die here
+        my @errors = <$error>;
+        die join( $/, @errors ) if @errors;
+
+        $result = [<$reader>];
+        
+        alarm 0;
+    }
+
 
     ddx $result;
     my $result = decode_json( join( '', $result->[1] ) );
@@ -1073,12 +1095,6 @@ sub pmgr_qagent_exec_or_die {
 
     my ($nodeip, $vmid, $command, $args) = @_;
 
-    # Timeout can be implemented better; TODO
-    local $SIG{ALRM} = sub {
-        die "Qemu Agent execution timeout";
-    };
-    alarm 600; # TODO: Configure and modify parameter
-
     my $execresult = pmgr_qagent_query_or_die( {
         vmid => $vmid,
         nodeip => $nodeip,
@@ -1088,6 +1104,13 @@ sub pmgr_qagent_exec_or_die {
 
     return $execresult if $execresult->{error};
 
+
+    # Timeout can be implemented better; TODO
+    local $SIG{ALRM} = sub {
+        die "Qemu Agent waiting for command return timeout";
+    };
+    alarm 600; # TODO: Configure and modify parameter
+    
     my $statusresult;
     do {
         sleep 0.1;
