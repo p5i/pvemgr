@@ -14,22 +14,36 @@ Ext.define('PveMgr.view.VmPanel', {
                     region: 'center',
                     xtype: 'panel',
                     autoScroll: true,
-                    border: true,
+                    border: false,
                     margins: '5 5 5 5',
                     bodyCls: 'pvemgr-code',
                     html: 'shell',
                 },{
                     region: 'south',
-                    margins:'0 5 5 5',
+                    xtype: 'form',
+                    layout: 'hbox',
                     border: false,
-                    xtype: 'textfield',
-                    value: '',
-                    fieldStyle: 'font-family: monospace;',
-                    allowBlank: true,
-                    listeners: {
-                        specialkey: 'vmPanelShellKey',
-                    },
-                    width: '100%',
+                    items: [
+                        {
+                            //~ margins:'0 5 5 5',
+                            border: false,
+                            xtype: 'textfield',
+                            value: '',
+                            fieldStyle: 'font-family: monospace;',
+                            allowBlank: true,
+                            listeners: {
+                                specialkey: 'vmPanelShellKey',
+                            },
+                            flex: 1,
+                        },{
+                            xtype: 'button',
+                            text: 'Выполнить',
+                            listeners: {
+                                click: 'vmPanelShellClick',
+                            },
+                            width: 100,
+                        },
+                    ],
                 },
             ],
         },{
@@ -86,6 +100,41 @@ Ext.define('PveMgr.view.VmPanel', {
                 { text: 'Имя', dataIndex: 'name' },
                 { text: 'Значение', dataIndex: 'value', flex: 1 },
             ],
+        },{
+            xtype: 'grid',
+            title: 'Снепшоты',
+            iconCls: 'x-fa fa-history',
+            bind: {
+               store: '{record.snapstore}',
+            },
+            columns: [
+                { text: 'Имя', dataIndex: 'name' },
+                { text: 'Описание', dataIndex: 'description', },
+                { text: 'Создан', dataIndex: 'snaptime',  },
+                { text: 'Состояние ВМ', dataIndex: 'vmstate' },
+            ],
+            listeners: {
+                show: function(grid) {
+                    const vModel = this.lookupViewModel();
+                    const vmdata = vModel.getData().record.data;
+                    PveMgr.vmSnapshots(
+                        {
+                            snapAction: 'get',
+                            vmid: vmdata.vmid,
+                            node: vmdata.node,
+                        },
+                        function(resp) {
+                            console.log(resp.data);
+                            console.log(grid);
+                            var store = Ext.create( 'Ext.data.Store', {
+                                model: 'PveMgr.model.VmSnapshot',
+                                data: resp.data,
+                            } );
+                            grid.setStore(store);
+                        }
+                    );
+                },
+            },
         },
     ],
     //~ initComponent: function() {

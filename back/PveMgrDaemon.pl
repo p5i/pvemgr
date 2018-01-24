@@ -332,6 +332,15 @@ sub pmgr_api_request { # <API call>
             pmgr_success( $req, shift );
         }
 
+    } elsif ($path eq '/api/vmsnapshots') {
+        fork_call {
+            my $content = decode_json($req->content);
+            pmgr_vm_snapshots($content, $pve);
+        } sub {
+            pmgr_fiasco($req, $@) if $@;
+            pmgr_success( $req, shift );
+        }
+
     } elsif ($path eq '/api/poolquotasave') {
         fork_call {
             my $content = decode_json($req->content);
@@ -587,6 +596,29 @@ sub pmgr_vms {
             $pve->get("/nodes/$vm->{node}/$vm->{id}/config"); 
     }
     return $vms;
+}
+
+sub pmgr_vm_snapshots {
+    my ($opts, $pve) = @_;
+
+    my $vm = { vmid => $opts->{vmid}, node => $opts->{node} };
+    if( !$vm->{node} ) {
+        ($vm) = grep { $_->{vmid} eq $vm->{vmid} }
+                $pve->get_cluster_resources( type => 'vm' );
+    };
+    if ( !$vm || !$vm->{node} || !$vm->{vmid} ) {
+        return;
+    }
+
+    my @snaps = $pve->get("/nodes/$vm->{node}/qemu/$vm->{vmid}/snapshot");
+    for (@snaps) {
+        ddx $_;
+        $_->{config} = $pve->get(
+            "/nodes/$vm->{node}/qemu/$vm->{vmid}/snapshot/$_->{name}/config"
+        );
+    }
+    ddx @snaps;
+    return \@snaps; 
 }
 
 sub pmgr_storages {
@@ -1047,7 +1079,7 @@ EOC
         local $SIG{ALRM} = sub {
             die "Qemu Agent execution timeout";
         };
-        alarm 30; # TODO: Configure and modify parameter
+        alarm 60; # TODO: Configure and modify parameter
 
         my $ssh = Net::OpenSSH->new("root\@$nodeip");
         $ssh->error and

@@ -17,6 +17,7 @@ Ext.application({
         //'PveMgr.model.Node',
         'PveMgr.model.DeployVmModel',
         'PveMgr.model.Vm',
+        'PveMgr.model.VmSnapshot',
         'PveMgr.data.Proxy',
         'PveMgr.store.Vms',
         'PveMgr.store.VmTemplates',
@@ -48,15 +49,15 @@ Ext.application({
     controllers: ['AppController'],
     paths: {'PveMgr': './pvemgr'},
     //stores: ['PveMgr.data.Vms'],
-    
+
     init: function() {
 
         if (window.location.hash === '#APIDEBUG') PveMgr.APIDEBUG = true;
 
         var urlapi = PveMgr.APIDEBUG ? '/api-debug' : '/api';
-        
+
         Ext.state.Manager.setProvider(new Ext.state.CookieProvider());
-        
+
         PveMgr.req = function(url, data, callback) {
             Ext.Ajax.request({
                 timeout: 900000, // TODO: Configure and modify request parameters
@@ -86,6 +87,7 @@ Ext.application({
                 },
             });
         };
+
         // opts = {vms: vms, users: users, misc:misc}
         PveMgr.deployVms = function(opts, callback) {
             PveMgr.req(
@@ -103,6 +105,7 @@ Ext.application({
                     callback(r);
                 });
         };
+
         PveMgr.rawData = function(store) {
             let rData = [];
             store.getData().each( function(item) {
@@ -116,11 +119,13 @@ Ext.application({
             str = str * 1 + 1;
             return ("0".repeat(len-1) + str).slice(-len);
         };
+
         PveMgr.toast = function(message, title, align, iconcls) {
             title?  console.log('Toast', title, message)
                  :  console.log('Toast', message);
             Ext.toast( message, title, align, iconcls );
         };
+
         PveMgr.qagentAction = function(vm, action, data, callback) {
             PveMgr.req( urlapi + '/qagentaction', {
                 action,
@@ -129,6 +134,7 @@ Ext.application({
                 node: vm.node,
             }, callback );
         };
+
         PveMgr.comboLoadOnce = function(combo, store) {
             if (store.getData().getAt(0)) {
                 combo.select(store.getData().getAt(0));
@@ -147,8 +153,16 @@ Ext.application({
                 );
             }
         };
+
+        PveMgr.vmSnapshots = function(opts, callback) {
+            PveMgr.req(
+                urlapi + '/vmsnapshots',
+                opts,
+                callback
+            );
+        };
     },
-    
+
     launch:function(){
 //
 // <Testing>
@@ -188,7 +202,7 @@ Ext.application({
                     //~ + response.status);
             //~ }
         //~ });
-        
+
     },
     listen : {
         controller : {
