@@ -341,7 +341,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
         store.clearFilter();
     },
 
-    vmAgentShellExec: function (inFld, outPanel) {
+    vmPanelShellExec: function (inFld, outPanel) {
         
         const cmd = inFld.getValue();
         const text = outPanel.body.dom.textContent
@@ -370,9 +370,11 @@ Ext.define('PveMgr.view.WorkspaceController', {
                         const err = Ext.util.Base64.decode(resp.data.return['err-data']);
                         text += '\nSTDERR:\n' + err;
                     }
-                    text += '\nКоманда: "' + cmd + '" Завершена';
+                    text += '\nКоманда: "' + cmd + '" завершена';
                     outPanel.update(text);
-                    d.scrollTop = d.scrollHeight - d.offsetHeight;
+                    // Add 100 workaround horizontal scrollbar height 
+                    // TODO: Verify in different browsers
+                    d.scrollTop = d.scrollHeight - d.offsetHeight + 100;
                 } else if (resp.err) {
                     PveMgr.toast(resp.err.message, "Ошибка");
                 } else {
@@ -382,15 +384,23 @@ Ext.define('PveMgr.view.WorkspaceController', {
         );
     },
     
-    vmPanelShellKey: function(inFld, e, eOpts) {
+    vmPanelShellKey: function( inFld, e, eOpts ) {
+        const form = inFld.up();
+        const codePalnel = form.up().prevChild(form);
         if (e.getKey() === e.ENTER) {
-            const codePalnel = inFld.up().prevChild(inFld);
-            this.vmAgentShellExec(inFld, codePalnel);
+            this.vmPanelShellExec(inFld, codePalnel);
         } else if (e.getKey() === e.PAGE_UP) {
-            textbox.scrollBy(0, -0.9*textbox.getHeight(), false);
+            codePalnel.scrollBy(0, -0.9*codePalnel.getHeight(), false);
         } else if (e.getKey() === e.PAGE_DOWN) {
-            textbox.scrollBy(0, 0.9*textbox.getHeight(), false);
+            codePalnel.scrollBy(0, 0.9*codePalnel.getHeight(), false);
         }
+        e.stopEvent();
+    },
+    vmPanelShellClick: function( btn, e, eOpts ) {
+        const form = btn.up();
+        const codePalnel = form.up().prevChild(form);
+        const inFld = form.prevChild(btn);
+        this.vmPanelShellExec(inFld, codePalnel);
     },
 
     test: function() {
