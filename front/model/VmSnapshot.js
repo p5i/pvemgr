@@ -1,5 +1,5 @@
 Ext.define('PveMgr.model.VmSnapshot', {
-    extend: 'Ext.data.Model',
+    extend: 'Ext.data.TreeModel',
     idProperty: 'name',
     fields: [
         'name',

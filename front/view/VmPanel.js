@@ -101,20 +101,31 @@ Ext.define('PveMgr.view.VmPanel', {
                 { text: 'Значение', dataIndex: 'value', flex: 1 },
             ],
         },{
-            xtype: 'grid',
-            title: 'Снепшоты',
+            xtype: 'treepanel',
+            title: 'Снэпшоты',
+            rootVisible: false,
+            collapsible: false,
             iconCls: 'x-fa fa-history',
-            bind: {
-               store: '{record.snapstore}',
-            },
+            sortableColumns: false,
+            columnLines: true,
+            lines: true,
             columns: [
-                { text: 'Имя', dataIndex: 'name' },
-                { text: 'Описание', dataIndex: 'description', },
-                { text: 'Создан', dataIndex: 'snaptime',  },
-                { text: 'Состояние ВМ', dataIndex: 'vmstate' },
+                { text: 'Имя', dataIndex: 'name', xtype: 'treecolumn', flex: 1 },
+                { text: 'Описание', dataIndex: 'description', flex: 1 },
+                {
+                    text: 'Создан',
+                    dataIndex: 'snaptime',
+                    //~ xtype: 'datecolumn',
+                    renderer: v => Ext.Date.format(v,'Y-m-d H:i:s'),
+                    flex: 1
+                },
+                { text: 'Состояние ВМ', dataIndex: 'vmstate', flex: 1 },
             ],
+            store: {
+                model: 'PveMgr.model.VmSnapshot',
+            },
             listeners: {
-                show: function(grid) {
+                show: function(panel) {
                     const vModel = this.lookupViewModel();
                     const vmdata = vModel.getData().record.data;
                     PveMgr.vmSnapshots(
@@ -124,13 +135,40 @@ Ext.define('PveMgr.view.VmPanel', {
                             node: vmdata.node,
                         },
                         function(resp) {
-                            console.log(resp.data);
-                            console.log(grid);
-                            var store = Ext.create( 'Ext.data.Store', {
-                                model: 'PveMgr.model.VmSnapshot',
-                                data: resp.data,
+                            let snaps = resp.data;
+                            console.log(panel);
+                            let root = {
+                                expanded: true,
+                            };
+                            panel.setRootNode(root);
+                            
+                            root.children = snaps.filter( s => !s.parent );
+                            console.log(root.children);
+                            
+                            root.children.forEach( function maketree (p) {
+                                let chldrn = [];
+                                let notChldrn = [];
+                                snaps.forEach( (s, i) => {
+                                    if ( s && s.parent === p.name ) {
+                                        chldrn.push(s);
+                                    } else {
+                                        notChldrn.push(s);
+                                    }
+                                } );
+                                if (chldrn.length) {
+                                    p.children = chldrn;
+                                    p.expanded = true;
+                                    p.expandable = false;
+                                } else {
+                                    p.leaf = true;
+                                }
+                                if (p.name === 'current') p.iconCls = 'x-fa fa-desktop';
+                                else p.iconCls = 'x-fa fa-history';
+                                snaps = notChldrn;
+                                chldrn.forEach(maketree);
                             } );
-                            grid.setStore(store);
+                            console.log(root.children);
+                            panel.setRootNode(root);
                         }
                     );
                 },

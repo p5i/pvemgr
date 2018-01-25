@@ -68,13 +68,13 @@ Ext.application({
                     try {
                         r = Ext.decode(resp.responseText);
                         if (r.success !== 1) throw new Error(r.errorMsg);
-                        callback(r);
                     } catch (er) { // Backend application error
                         console.error('ОШИБКА серверного приложения.', er);
                         er.message = 'Ошибка серверного приложения. '
                             + er.message;
                         callback({success: false, err: er});
                     }
+                    callback(r);
                 },
                 failure: function(resp, opts) {  // Communication error
                     console.error('ОШИБКА ЗАПРОСА', resp, opts);
