@@ -108,9 +108,16 @@ Ext.define('PveMgr.view.VmPanel', {
             title: 'Снэпшоты',
             //~ border: false,
             iconCls: 'x-fa fa-history',
+            listeners: {
+                show: 'vmPanelGetSnaps',
+            },
+            defaults: {
+                split: true,
+            },
             items: [
                 {
                     xtype: 'treepanel',
+                    itemId: 'snapTree',
                     rootVisible: false,
                     collapsible: false,
                     sortableColumns: false,
@@ -133,11 +140,8 @@ Ext.define('PveMgr.view.VmPanel', {
                     tbar: [
                         {
                             itemId: 'snapshotBtn',
-                            text: 'Сформировать новый Снэпшот',
-                            handler: function() {
-                                var win = Ext.create('Ext.window.Window');
-                                win.show();
-                            },
+                            text: 'Удалить Снэпшот',
+                            handler: 'vmPanelSnapDelClick',
                         },
                     ],
 
@@ -160,69 +164,70 @@ Ext.define('PveMgr.view.VmPanel', {
                         model: 'PveMgr.model.VmSnapshot',
                     },
                     listeners: {
-                        add: function(panel) {
-                            console.log(this);
-                            const vModel = this.lookupViewModel();
-                            const vmdata = vModel.getData().record.data;
-                            PveMgr.vmSnapshots(
-                                {
-                                    snapAction: 'get',
-                                    vmid: vmdata.vmid,
-                                    node: vmdata.node,
-                                },
-                                function(resp) {
-                                    let snaps = resp.data;
-                                    let root = {
-                                        expanded: true,
-                                    };
-
-                                    root.children = snaps.filter( s => !s.parent );
-
-                                    // Converting list to tree
-                                    root.children.forEach( function maketree (p) {
-                                        let chldrn = [];
-                                        let notChldrn = [];
-                                        snaps.forEach( (s, i) => {
-                                            if ( s && s.parent === p.name ) {
-                                                chldrn.push(s);
-                                            } else {
-                                                notChldrn.push(s);
-                                            }
-                                        } );
-                                        if (chldrn.length) {
-                                            p.children = chldrn;
-                                            p.expanded = true;
-                                            p.expandable = false;
-                                        } else {
-                                            p.leaf = true;
-                                        }
-                                        if (p.name === 'current') p.iconCls = 'x-fa fa-desktop';
-                                        else p.iconCls = 'x-fa fa-history';
-                                        snaps = notChldrn;
-                                        chldrn.forEach(maketree);
-                                    } );
-
-                                    panel.setRootNode(root);
-                                }
-                            );
-                        },
+                        select: function(rm, record) {
+                            const snap = record.getData();
+                            const treepanel = this;
+                            const snappanel = treepanel.up();
+                            const snapconf = snappanel.getComponent('snapCtrl');
+                            console.log(snapconf);
+                            console.log( snapconf.getForm().setValues( {
+                                name: snap.name,
+                                description: snap.description,
+                                vmstate: snap.vmstate, 
+                            } ) );
+                        }
                     },
                 },{
                     region: 'east',
+                    itemId: 'snapCtrl',
                     xtype: 'form',
-                    title: 'Новый снэпшот',
-                    collapsed: true,
+                    title: 'Управление',
+                    //~ collapsed: true,
                     collapsible: true,
+                    bodyPadding: 5,
+                    fieldDefaults: {
+                        labelAlign: 'top',
+                        width: '100%',
+                    },
+                    width: 300,
+                    buttonAlign: 'center',
+                    border: false,
+                    
                     items: [
                         {
+                            xtype: 'textfield',
+                            //~ width: 50,
+                            fieldLabel: 'Наименование',
+                            name: 'name',
+                        },{
                             xtype: 'textareafield',
                             fieldLabel: 'Описание',
                             fieldStyle: "{font-size: small; white-space: nowrap;}",
                             name: 'description',
                             scrollable: true,
-                            height: 200,
+                            height: 100,
+                        },{
+                            xtype: 'checkbox',
+                            boxLabel: 'RAM',
+                            name: 'vmstate',
+                            inputValue: 1,
+                            uncheckedValue: 0,
                         },
                     ],
+                    buttons: [
+                        {
+                            text: 'Создать новый',
+                            itemId: 'btnCreate',
+                            formBind: true,
+                            handler: 'onCreateClick',
+                        },{
+                            text: 'Обновить',
+                            itemId: 'btnUpdate',
+                            formBind: true,
+                            handler: 'onUpdateClick',
+                        },
+                    ],
+
                 },
 
 

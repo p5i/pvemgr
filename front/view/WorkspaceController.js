@@ -165,7 +165,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
         Ext.getStore('vmStore').load();
     },
     
-    onVmGrpupingSelect: function(component, record) {
+    onVmGroupingSelect: function(component, record) {
         let store = this.lookupReference('vmGrid').getStore(); // Chained store
         record.data.value ?
             store.group(record.data.value)
@@ -418,6 +418,94 @@ Ext.define('PveMgr.view.WorkspaceController', {
                 console.log(resp);
                 if(resp.success) PveMgr.toast(JSON.stringify(resp));
                 else PveMgr.toast(resp.err.message);
+            }
+        );
+    },
+    
+    vmPanelGetSnaps: function(panel) {
+        const treePanel = panel.getComponent('snapTree'); // Working on treepanel with snapshots
+        const vModel = treePanel.lookupViewModel();
+        const vmdata = vModel.getData().record.data;
+        PveMgr.vmSnapshots(
+            {
+                snapAction: 'get',
+                vmid: vmdata.vmid,
+                node: vmdata.node,
+            },
+            function(resp) {
+                let snaps = resp.data;
+                let root = {
+                    expanded: true,
+                };
+
+                root.children = snaps.filter( s => !s.parent );
+
+                // Converting list to tree
+                root.children.forEach( function maketree (p) {
+                    let chldrn = [];
+                    let notChldrn = [];
+                    snaps.forEach( (s, i) => {
+                        if ( s && s.parent === p.name ) {
+                            chldrn.push(s);
+                        } else {
+                            notChldrn.push(s);
+                        }
+                    } );
+                    if (chldrn.length) {
+                        p.children = chldrn;
+                        p.expanded = true;
+                        p.expandable = false;
+                    } else {
+                        p.leaf = true;
+                    }
+                    if (p.name === 'current') p.iconCls = 'x-fa fa-desktop';
+                    else p.iconCls = 'x-fa fa-history';
+                    snaps = notChldrn;
+                    chldrn.forEach(maketree);
+                } );
+
+                treePanel.setRootNode(root);
+            }
+        );
+    },
+
+    vmPanelSnapDelClick: function(btn) {
+        const treepanel = btn.up().up();
+        this.vmPanelSnapOps(treepanel, 'del');
+    },
+    
+    // Create, modify, rollback or delete snaphot, given treepanel with optionaly selected snapshot
+    vmPanelSnapOps: function(treepanel, op) {
+        const controller = this;
+        const opts = {snapAction: op};
+        
+        if ( ['del', 'modify', 'rollback'].indexOf(op) > -1 ) {
+            const selection = treepanel.getSelection();
+            if(!selection.length){
+                PveMgr.toast('Необходимо выбрать снэпшот', 'Ошибка');
+                return;
+            }
+            opts.snap = selection[0].getData().name;
+        }
+        
+        const vmdata = treepanel.lookupViewModel().get('record').getData();
+        opts.vmid = vmdata.vmid;
+        opts.node = vmdata.node;
+        
+        PveMgr.vmSnapshots(opts,
+            function(resp) {
+                if (resp.success) {
+                    // Timeout to let task complete
+                    // TODO: implement task progress monitoring: Take Task ID and verify periodically until it completes
+                    setTimeout( () =>
+                        controller.vmPanelGetSnaps(treepanel.up())
+                    , 5000);
+                    console.log(resp);
+                    PveMgr.toast(resp.msg , 'Задача запущена');
+                }
+                else {
+                    Ext.Msg.alert('Error', resp.err.message);
+                }
             }
         );
     },

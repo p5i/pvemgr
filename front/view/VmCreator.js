@@ -173,11 +173,6 @@ Ext.define('PveMgr.view.VmCreator', {
                 labelAlign: 'top',
             },
             items: [
-                {
-                    xtype: 'fieldcontainer',
-                    layout: 'hbox',
-                    width: '100%',
-                    items: [
                         {
                             xtype: 'checkbox',
                             boxLabel: 'Включить',
@@ -191,8 +186,8 @@ Ext.define('PveMgr.view.VmCreator', {
                             inputValue: 1,
                             uncheckedValue: 0,
                         },
-                    ],
-                },
+                    
+              
             ],
         },
     ],

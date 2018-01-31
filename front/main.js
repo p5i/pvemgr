@@ -73,6 +73,7 @@ Ext.application({
                         er.message = 'Ошибка серверного приложения. '
                             + er.message;
                         callback({success: false, err: er});
+                        return;
                     }
                     callback(r);
                 },

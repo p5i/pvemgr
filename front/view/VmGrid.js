@@ -49,7 +49,7 @@ Ext.define('PveMgr.view.VmGrid', {
                     ],
                 },
                 listeners: {
-                    select: 'onVmGrpupingSelect',
+                    select: 'onVmGroupingSelect',
                 },
                 bind: '{vmGridGroupBy}',
                 margin: '0 0 0 15',

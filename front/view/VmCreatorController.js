@@ -60,7 +60,7 @@ Ext.define('PveMgr.view.VmCreatorController', {
             dopve: data.dopve || undefined,
         }));
         console.log(vms);
-        PveMgr.deployVms( {vms: vms, pool: data.poolid},
+        PveMgr.deployVms( {vms: vms, poolid: data.pool},
                 (req) => button.enable(true) );
     },
     generateVms: function() {

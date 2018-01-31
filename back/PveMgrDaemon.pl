@@ -413,6 +413,7 @@ sub pmgr_http_respond {
     push($hResp, encode_json $data) if $data;
     $req->respond($hResp);
 }
+
 sub pmgr_fiasco {
     my ($req, $err) = @_;
     my $resp = {
@@ -610,15 +611,29 @@ sub pmgr_vm_snapshots {
         return;
     }
 
-    my @snaps = $pve->get("/nodes/$vm->{node}/qemu/$vm->{vmid}/snapshot");
-    for (@snaps) {
-        ddx $_;
-        $_->{config} = $pve->get(
-            "/nodes/$vm->{node}/qemu/$vm->{vmid}/snapshot/$_->{name}/config"
+    if ($opts->{snapAction} eq 'get') {
+        my @snaps = $pve->get("/nodes/$vm->{node}/qemu/$vm->{vmid}/snapshot");
+        for (@snaps) {
+            if ($_->{name} ne 'current') {
+                $_->{config} = $pve->get(
+                    "/nodes/$vm->{node}/qemu/$vm->{vmid}/snapshot/$_->{name}/config"
+                );
+            }
+        }
+        return \@snaps; 
+        
+    } elsif ($opts->{snapAction} eq 'del') {
+        ddx $opts;
+        my $result = $pve->delete(
+            "/nodes/$vm->{node}/qemu/$vm->{vmid}/snapshot/$opts->{snap}"
         );
+        ddx $result;
+        die "Ошибка при удалениии" unless defined $result;
+        return $result;
+        
+    } else {
+        die "Неизвестное действие '$opts->{snapAction}'";
     }
-    ddx @snaps;
-    return \@snaps; 
 }
 
 sub pmgr_storages {
