@@ -8,7 +8,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
     init: function() {
         let me = this;
         let sp = Ext.state.Manager.getProvider();
-        
+
         Ext.getStore('vmStore').load();
         Ext.getStore('storageStore').load();
         Ext.getStore('poolStore').load();
@@ -19,7 +19,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
                 sp.clear('loggedUser');
             }
         });
-        
+
         sp.on('statechange', function(sProv, param, value) {
             if (param == 'loggedUser') {
                 me.getViewModel().set( 'loggedUser', value );
@@ -35,7 +35,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
                 //~ unmatchedroute: function() {console.log('unmathed in workspace', arguments);},
             //~ },
         //~ },
-        
+
         store: {
             '#vmStore': {
                 load: function(store, records, successful, operation) {
@@ -96,10 +96,10 @@ Ext.define('PveMgr.view.WorkspaceController', {
                 },
             },
         }, // </store>
-        
+
     }, // </listen>
 
-    
+
     showLogin: function() {
         let vModel = this.getViewModel();
         let login = vModel.get('login');
@@ -115,11 +115,11 @@ Ext.define('PveMgr.view.WorkspaceController', {
     onAddWindow: function(sender, record) {
         Ext.Msg.alert('Add Window', 'Add a new window here.');
     },
-    
+
     //~ myOnRender: function(choice) {
         //~ Ext.Msg.alert('Add Tab', 'Add a new tab here. My Viewport Event');
     //~ },
-    
+
     onCloneVm: function() {
         let vmGrid = this.lookupReference('vmGrid');
         if(!vmGrid.selection){
@@ -139,7 +139,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
             description: data.config.description,
         });
     },
-    
+
     onLogFileSelect: function(grid, selection) {
         if(!selection.length) return;
         let taskLog = this.lookupReference('taskLog');
@@ -156,22 +156,22 @@ Ext.define('PveMgr.view.WorkspaceController', {
             }
         });
     },
-    
+
     updateTaskLogs: function() {
         this.lookupReference('taskLogs').getStore().load();
     },
-    
+
     updateVMs: function() {
         Ext.getStore('vmStore').load();
     },
-    
+
     onVmGroupingSelect: function(component, record) {
         let store = this.lookupReference('vmGrid').getStore(); // Chained store
         record.data.value ?
             store.group(record.data.value)
             : store.clearGrouping();
     },
-    
+
     getVmAddress: function() {
         let vmGrid = this.lookupReference('vmGrid');
         let selection = vmGrid.getSelection();
@@ -196,7 +196,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
             }
         );
     },
-    
+
     vmGridStart: function(view, rowInd, colInd, item, event, record) {
         let vc = this;
         let d = record.getData();
@@ -207,7 +207,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
            }
         }).setIconCls('x-fa fa-play');
     },
-    
+
     vmGridStop: function(view, rowInd, colInd, item, event, record) {
         let vc = this;
         let d = record.getData();
@@ -218,7 +218,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
            }
         }).setIconCls('x-fa fa-stop');
     },
-    
+
     vmGridDelete: function(view, rowInd, colInd, item, event, record) {
         let vc = this;
         let d = record.getData();
@@ -229,7 +229,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
            }
         }).setIconCls('x-fa fa-times');
     },
-    
+
     vmAction: function(vmid, action, node) {
         Ext.Ajax.request({
             url: "api/vmaction",
@@ -251,7 +251,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
             }
         });
     },
-    
+
     vmTreeSelect: function(selection, record, index) {
         let vmGrid = this.lookupReference('vmGrid');
         let store = vmGrid.getStore();  // Using chained store for filtering
@@ -268,7 +268,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
             }]);
         };
     },
-    
+
     wsSelectorFilter: function(field, newVal, oldVal) {
         let store = this.lookupReference('wsSelector').getActiveTab().getStore();
         store.clearFilter();
@@ -280,20 +280,20 @@ Ext.define('PveMgr.view.WorkspaceController', {
             anyMatch: true,
         });
     },
-    
+
     onVmFromStorage: function(grid, rowIndex, colIndex) {
         let vmid = grid.getStore().getAt(rowIndex).get('vmid');
         let vmGrid = this.lookupReference('vmGrid');
         let storeNum = vmGrid.getStore().find('vmid', vmid);
         this.gotoVm(vmid);
     },
-    
+
     onStorageFromVm: function(grid, rowIndex, colIndex) {
         let storage = grid.getStore().getAt(rowIndex).get('storage');
         let node = grid.getStore().getAt(rowIndex).get('node');
         this.gotoStorage(storage, node);
     },
-    
+
     gotoVm: function(vmid) {
         let wsSelector = this.lookupReference('wsSelector');
         if (wsSelector.getActiveTab().getItemId != 'vms'){
@@ -310,7 +310,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
             animate: true
         });
     },
-    
+
     gotoStorage: function(storage, node) {
         let wsSelector = this.lookupReference('wsSelector');
         let strgGrid = this.lookupReference('storageGrid');
@@ -342,7 +342,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
     },
 
     vmPanelShellExec: function (inFld, outPanel) {
-        
+
         const cmd = inFld.getValue();
         const text = outPanel.body.dom.textContent
                    + '\nКоманда: ' + cmd + "\nЗапрос отправлен";
@@ -383,7 +383,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
             }
         );
     },
-    
+
     vmPanelShellKey: function( inFld, e, eOpts ) {
         const form = inFld.up();
         const codePalnel = form.up().prevChild(form);
@@ -421,7 +421,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
             }
         );
     },
-    
+
     vmPanelGetSnaps: function(panel) {
         const treePanel = panel.getComponent('snapTree'); // Working on treepanel with snapshots
         const vModel = treePanel.lookupViewModel();
@@ -472,13 +472,13 @@ Ext.define('PveMgr.view.WorkspaceController', {
     vmPanelSnapBtnClick: function(btn) {
         btn.disable(true);
         const vc = this;
-        
+
         Ext.MessageBox.confirm(
             'Требуется подтверждение',
             'Подтверждение действия "' + btn.getText() + ' снэпшот"',
 
             confirm => {
-                
+
                 if ( confirm === 'yes' ) {
                     const snaptab = btn.up('[itemId=snapTab]');     // Alternative Ext JS selector '#snapTab'
                     vc.vmPanelSnapOps(
@@ -488,7 +488,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
                     );
                     setTimeout( () => btn.enable(true), 10000 );    // enable anyway if something goes wrong
                 }
-                
+
             }).setIconCls('x-fa fa-play');
     },
 
@@ -518,7 +518,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
         const vmdata = treepanel.lookupViewModel().get('record').getData();
         opts.vmid = vmdata.vmid;
         opts.node = vmdata.node;
-        
+
         PveMgr.vmSnapshots(opts,
             function(resp) {
                 if (resp.success) {

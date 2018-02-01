@@ -9,19 +9,19 @@ Ext.define('PveMgr.view.VmCreator', {
     border: false,
     layout: 'vbox',
     scrollable: 'vertical',
-    
+
     onShow: function() {
         this.callParent();
         this.getController().getNewId();
     },
-    
+
     fieldDefaults: {
         xtype: 'textfield',
         msgTarget: 'side',
         labelAlign: 'top',
         width: 120,
     },
-    
+
     items: [
         {
             reference: 'pool',
@@ -184,8 +184,8 @@ Ext.define('PveMgr.view.VmCreator', {
                             inputValue: 1,
                             uncheckedValue: 0,
                         },
-                    
-              
+
+
             ],
         },
     ],

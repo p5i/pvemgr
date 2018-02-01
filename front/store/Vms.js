@@ -1,7 +1,7 @@
 Ext.define('PveMgr.store.Vms', {
     extend: 'Ext.data.Store',
     model: 'PveMgr.model.Vm',
-    
+
     proxy: {
         keepData: true, // Sets KeepRawData property in Reader
         type: 'pvemgr.proxy',

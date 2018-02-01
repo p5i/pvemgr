@@ -7,7 +7,7 @@ Ext.define('PveMgr.view.ScriptedActionController', {
     scriptedActionStart: function(button) {
         let fPanel = this.getView();
         let vals = fPanel.getValues();
-        
+
         fPanel.submit({
             waitMsg: 'Загрузка...',
             params: vals,
@@ -28,7 +28,7 @@ Ext.define('PveMgr.view.ScriptedActionController', {
             }
         });
     },
-    
+
     scriptedActionClear: function() {
         let scriptCombo = this.getView().getForm().findField('script');
         scriptCombo.fireEvent('change', scriptCombo);

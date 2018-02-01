@@ -194,7 +194,7 @@ Ext.define('PveMgr.view.VmPanel', {
                     width: 300,
                     buttonAlign: 'center',
                     border: false,
-                    
+
                     items: [
                         {
                             xtype: 'textfield',

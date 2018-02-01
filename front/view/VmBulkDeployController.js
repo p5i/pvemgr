@@ -24,7 +24,7 @@ Ext.define('PveMgr.view.VmBulkDeployController', {
             },
         },
     }, // End of listen definition
-    
+
     afterCompShow: function() {
         let poolCbx = this.lookupReference('pool');
         let store = poolCbx.getStore();
@@ -32,9 +32,9 @@ Ext.define('PveMgr.view.VmBulkDeployController', {
     },
 
     bulkDeployStart: function(button) {
-        
+
         button.disable(true);
-        
+
         let panel = this.getView();
         let vms = PveMgr.rawData(
             panel.lookupReference('bulkVmGrid').getStore());

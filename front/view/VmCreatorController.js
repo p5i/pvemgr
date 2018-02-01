@@ -21,7 +21,7 @@ Ext.define('PveMgr.view.VmCreatorController', {
             method: 'GET',
             url: 'api/newid',
             params: meForm.getValues(),
-            
+
             success: function(form, action) {
                 try {
                     var resp = Ext.decode(action.response.responseText);
@@ -32,7 +32,7 @@ Ext.define('PveMgr.view.VmCreatorController', {
                     Ext.Msg.alert('Status', 'Exception: ' + ex.Message);
                 }
             },
-            
+
             failure: function(meForm, action) {
                 console.log(action);
                 PveMgr.toast( 'Ошибка при запросе сврбодного VMID: '

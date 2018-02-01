@@ -11,11 +11,11 @@ Ext.define('PveMgr.view.WorkspaceModel', {
         config: [
             {agent: 'aaa'},
         ],
-        
+
         vmData: [],
         nodeData: [],
         storageData: [],
-        
+
         vmTreeGroupBy: 'pool',
         vmGridGroupBy: false,
         storageTreeGroupBy: 'type',
@@ -90,7 +90,7 @@ Ext.define('PveMgr.view.WorkspaceModel', {
         ],
         scriptedActionsSelected: 'dopve',
     },
-    
+
     formulas: {
         name: function(get) {
             var fn = get('firstName'), ln = get('lastName');
@@ -119,7 +119,7 @@ Ext.define('PveMgr.view.WorkspaceModel', {
                         vmid: d.vmid,
                     })
                 });
-                
+
             } else {
                 grpFields = [... new Set(data.map(d => d[groupBy]))]; // getting unique groupping fields
                 grpFields.sort((a, b) => a.localeCompare(b));
@@ -266,8 +266,8 @@ Ext.define('PveMgr.view.WorkspaceModel', {
             return storeConf;
         },
     }, // End of formulas definitions
-    
+
     stores: {
     }, // End of stores definitions
-    
+
 });

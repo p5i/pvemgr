@@ -47,7 +47,7 @@ Ext.define('PveMgr.view.QuotaEdit', {
             style: {
                 padding: 5,
             },
-            
+
             items: [ // <Limitations>
                 {
                     xtype: 'fieldcontainer',

@@ -14,6 +14,6 @@ Ext.define('PveMgr.controller.AppController', {
         //~ //console.log('The panel was rendered', p);
     //~ },
     //~ init: function() {
-        
+
     //~ },
 });

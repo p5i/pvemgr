@@ -1,6 +1,6 @@
 Ext.define('PveMgr.view.Login', {
     extend: 'Ext.window.Window',
-    
+
     requires: ['PveMgr.view.LoginController'],
     controller: 'pvemgr.login',
 
@@ -14,7 +14,7 @@ Ext.define('PveMgr.view.Login', {
     title: 'PveMgr Login',
     defaultFocus: 'usernameField',
     defaultButton: 'loginButton',
-    
+
     onEsc: Ext.emptyFn, // "closable: false" is not enough for some reason
 
     items: [

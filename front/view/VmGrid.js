@@ -2,13 +2,13 @@ Ext.define('PveMgr.view.VmGrid', {
     extend: 'Ext.grid.Panel',
     xtype: 'pvemgr.vmgrid',
     title: 'Виртуальные Машины',
-    
+
     //~ bufferedRenderer: false,
     //~ leadingBufferZone: 200,
     //~ trailingBufferZone: 200,
-    
+
     features: [{ftype: 'groupingsummary'},{ftype: 'summary'} ],
-    
+
     header: {
         items: [
             {

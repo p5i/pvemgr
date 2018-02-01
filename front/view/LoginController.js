@@ -27,7 +27,7 @@ Ext.define('PveMgr.view.LoginController', {
             sp.set( realmCbx.getStateId(), realmCbx.getValue() )
             let values = form.getValues();
             pwField.setRawValue();
-            
+
             PveMgr.req( form.url, values, (res) => {
                 view.el.unmask();
                 if (res.success) {
@@ -84,7 +84,7 @@ Ext.define('PveMgr.view.LoginController', {
                     var pwField = this.lookupReference('passwordField');
                     pwField.focus();
                 }
-                
+
                 if ( !realmCbx.getValue() ) {
                     let rlmStore = realmCbx.getStore();
                     let defrealm =  sp.get( realmCbx.getStateId() );
@@ -102,5 +102,5 @@ Ext.define('PveMgr.view.LoginController', {
             },
         },
     },
-    
+
 });

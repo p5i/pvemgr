@@ -11,14 +11,14 @@ Ext.define('PveMgr.view.QuotaEditController', {
     },
 
     poolChange: function(combo) {
-        
+
         let recordData = combo.getSelection().getData();
         let form = this.getView().getForm();
 
         try {
             form.findField('comment').setValue(recordData.comment);
             let quota = /.*___QUOTA: (.*); QUOTA___/.exec( recordData.comment );
-            
+
             if (quota) quota = JSON.parse( quota[1] );
             else throw new Error('Права доступа и квоты не заданы');
 
@@ -56,6 +56,6 @@ Ext.define('PveMgr.view.QuotaEditController', {
         store.load( function() {
             poolCbx.fireEvent('select', poolCbx);
         });
-        
+
     },
 })

@@ -1,10 +1,10 @@
 Ext.define('PveMgr.store.Realms', {
     extend: 'Ext.data.Store',
-    
+
     storeId: 'realmStore',
-    
+
     fields: ['realm', 'type', 'comment'],
-    
+
     proxy: {
         keepData: true, // Sets KeepRawData property in Reader
         type: 'pvemgr.proxy',
@@ -16,7 +16,7 @@ Ext.define('PveMgr.store.Realms', {
         //~ {name: 'pve'},
         //~ {name: 'SPB.HELIX.RU'},
     //~ ],
-    
+
     singleton: true,
     sorters: [{
         direction: "DESC",
