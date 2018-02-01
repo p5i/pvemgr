@@ -29,13 +29,11 @@ Ext.define('PveMgr.view.VmCreator', {
             xtype: 'combobox',
             width: 200,
             labelWidth: 30,
-            margin: '0 0 0 15',
             fieldLabel: 'Пул',
             forceSelection: true,
             allowBlank: false,
             queryMode: 'local',
             displayField: 'poolid',
-
             store: 'poolStore',
         },{
             xtype: 'fieldcontainer',
