@@ -469,25 +469,36 @@ Ext.define('PveMgr.view.WorkspaceController', {
         );
     },
 
-    vmPanelSnapDelClick: function(btn) {
-        const treepanel = btn.up().up();
-        this.vmPanelSnapOps(treepanel, 'del');
+    vmPanelSnapBtnClick: function(btn) {
+        btn.disable(true);
+        const snaptab = btn.up('[itemId=snapTab]'); // Alternative Ext JS selector '#snapTab'
+        this.vmPanelSnapOps(snaptab, btn.getItemId());
+        btn.enable(true);
     },
-    
+
     // Create, modify, rollback or delete snaphot, given treepanel with optionaly selected snapshot
-    vmPanelSnapOps: function(treepanel, op) {
+    vmPanelSnapOps: function(snaptab, op) {
         const controller = this;
+        const treepanel = snaptab.getComponent('snapTree');
         const opts = {snapAction: op};
-        
-        if ( ['del', 'modify', 'rollback'].indexOf(op) > -1 ) {
+
+        if ( ['del', 'rollback'].indexOf(op) > -1 ) {
             const selection = treepanel.getSelection();
             if(!selection.length){
                 PveMgr.toast('Необходимо выбрать снэпшот', 'Ошибка');
                 return;
             }
-            opts.snap = selection[0].getData().name;
+            opts.snapname = selection[0].getData().name;
         }
-        
+        if ( ['takenew', 'modify'].indexOf(op) > -1 ) {
+            const data = snaptab.getComponent('snapCtrl').getValues();
+
+            opts.snapname    = data.name;
+            opts.description = data.description;
+            opts.vmstate     = data.vmstate;
+        }
+
+
         const vmdata = treepanel.lookupViewModel().get('record').getData();
         opts.vmid = vmdata.vmid;
         opts.node = vmdata.node;
@@ -497,10 +508,10 @@ Ext.define('PveMgr.view.WorkspaceController', {
                 if (resp.success) {
                     // Timeout to let task complete
                     // TODO: implement task progress monitoring: Take Task ID and verify periodically until it completes
+                    // TODO: In backand probably. Or in borh *ends
                     setTimeout( () =>
                         controller.vmPanelGetSnaps(treepanel.up())
                     , 5000);
-                    console.log(resp);
                     PveMgr.toast(resp.msg , 'Задача запущена');
                 }
                 else {

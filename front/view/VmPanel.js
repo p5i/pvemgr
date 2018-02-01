@@ -25,7 +25,6 @@ Ext.define('PveMgr.view.VmPanel', {
                     border: false,
                     items: [
                         {
-                            //~ margins:'0 5 5 5',
                             border: false,
                             xtype: 'textfield',
                             value: '',
@@ -101,12 +100,11 @@ Ext.define('PveMgr.view.VmPanel', {
                 { text: 'Значение', dataIndex: 'value', flex: 1 },
             ],
         },{
-            //~ xtype: 'container',
+            itemId: 'snapTab',
             layout: {
                 type: 'border',
             },
             title: 'Снэпшоты',
-            //~ border: false,
             iconCls: 'x-fa fa-history',
             listeners: {
                 show: 'vmPanelGetSnaps',
@@ -139,10 +137,15 @@ Ext.define('PveMgr.view.VmPanel', {
 
                     tbar: [
                         {
-                            itemId: 'snapshotBtn',
-                            text: 'Удалить Снэпшот',
-                            handler: 'vmPanelSnapDelClick',
+                            itemId: 'del',
+                            text: 'Удалить',
+                            handler: 'vmPanelSnapBtnClick',
+                        },{
+                            itemId: 'rollback',
+                            text: 'Откатить',
+                            handler: 'vmPanelSnapBtnClick',
                         },
+
                     ],
 
                     columns: [
@@ -169,12 +172,11 @@ Ext.define('PveMgr.view.VmPanel', {
                             const treepanel = this;
                             const snappanel = treepanel.up();
                             const snapconf = snappanel.getComponent('snapCtrl');
-                            console.log(snapconf);
-                            console.log( snapconf.getForm().setValues( {
+                            snapconf.getForm().setValues( {
                                 name: snap.name,
                                 description: snap.description,
                                 vmstate: snap.vmstate, 
-                            } ) );
+                            } );
                         }
                     },
                 },{
@@ -182,7 +184,7 @@ Ext.define('PveMgr.view.VmPanel', {
                     itemId: 'snapCtrl',
                     xtype: 'form',
                     title: 'Управление',
-                    //~ collapsed: true,
+                    collapsed: true,
                     collapsible: true,
                     bodyPadding: 5,
                     fieldDefaults: {
@@ -196,7 +198,6 @@ Ext.define('PveMgr.view.VmPanel', {
                     items: [
                         {
                             xtype: 'textfield',
-                            //~ width: 50,
                             fieldLabel: 'Наименование',
                             name: 'name',
                         },{
@@ -208,7 +209,7 @@ Ext.define('PveMgr.view.VmPanel', {
                             height: 100,
                         },{
                             xtype: 'checkbox',
-                            boxLabel: 'RAM',
+                            boxLabel: 'Память',
                             name: 'vmstate',
                             inputValue: 1,
                             uncheckedValue: 0,
@@ -217,14 +218,12 @@ Ext.define('PveMgr.view.VmPanel', {
                     buttons: [
                         {
                             text: 'Создать новый',
-                            itemId: 'btnCreate',
-                            formBind: true,
-                            handler: 'onCreateClick',
+                            itemId: 'takenew',
+                            handler: 'vmPanelSnapBtnClick',
                         },{
-                            text: 'Обновить',
-                            itemId: 'btnUpdate',
-                            formBind: true,
-                            handler: 'onUpdateClick',
+                            text: 'Изменить',
+                            itemId: 'modify',
+                            handler: 'vmPanelSnapBtnClick',
                         },
                     ],
 

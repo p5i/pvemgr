@@ -611,6 +611,8 @@ sub pmgr_vm_snapshots {
         return;
     }
 
+    my $result;
+
     if ($opts->{snapAction} eq 'get') {
         my @snaps = $pve->get("/nodes/$vm->{node}/qemu/$vm->{vmid}/snapshot");
         for (@snaps) {
@@ -621,19 +623,43 @@ sub pmgr_vm_snapshots {
             }
         }
         return \@snaps; 
-        
-    } elsif ($opts->{snapAction} eq 'del') {
-        ddx $opts;
-        my $result = $pve->delete(
-            "/nodes/$vm->{node}/qemu/$vm->{vmid}/snapshot/$opts->{snap}"
+
+    } elsif ($opts->{snapAction} eq 'modify') {
+        $pve->put(
+            "/nodes/$vm->{node}/qemu/$vm->{vmid}/snapshot/$opts->{snapname}/config",
+            { description => $opts->{description} }
         );
-        ddx $result;
+        # This request returns no data and now there is no sane way to check success of request
+        # TODO: Modify 'action' method in Net::Proxmox::VE module to return something defined on success
+        $result = "Задача на изменение снэпшота $opts->{snapname} отправлена";
+
+    } elsif ($opts->{snapAction} eq 'takenew') {
+        $result = $pve->post(
+            "/nodes/$vm->{node}/qemu/$vm->{vmid}/snapshot",
+            {
+                snapname => $opts->{snapname},
+                description => $opts->{description},
+                vmstate => $opts->{vmstate} ? 1 : 0,
+            }
+        );
+        die "Ошибка снятия снэпшота" unless defined $result;
+
+    } elsif ($opts->{snapAction} eq 'rollback') {
+        my $url = "/nodes/$vm->{node}/qemu/$vm->{vmid}/snapshot/$opts->{snapname}/rollback";
+        $result = $pve->post($url);
+        die "Ошибка отката на снэпшот" unless defined $result;
+
+    } elsif ($opts->{snapAction} eq 'del') {
+        $result = $pve->delete(
+            "/nodes/$vm->{node}/qemu/$vm->{vmid}/snapshot/$opts->{snapname}"
+        );
         die "Ошибка при удалениии" unless defined $result;
-        return $result;
         
     } else {
         die "Неизвестное действие '$opts->{snapAction}'";
     }
+
+    return $result;
 }
 
 sub pmgr_storages {
