@@ -420,7 +420,7 @@ sub pmgr_fiasco {
         success => 0,
         errorMsg => "Server Error:\n$err",
     };
-    
+
     ddx "Fiasco! " . $req->method . ' ' . $req->url
         ."; Client: $req->{host}:$req->{port}";
     print "$err$/";
@@ -654,7 +654,7 @@ sub pmgr_vm_snapshots {
             "/nodes/$vm->{node}/qemu/$vm->{vmid}/snapshot/$opts->{snapname}"
         );
         die "Ошибка при удалениии" unless defined $result;
-        
+
     } else {
         die "Неизвестное действие '$opts->{snapAction}'";
     }
@@ -1083,7 +1083,7 @@ sub pmgr_qagent_query_or_die {
         execute => $p->{command},
         arguments => $p->{args},
     };
-    
+
     ddx 'Sending agent command', $aQuery;
 
     my $cmd = [<<'EOC'];
@@ -1150,7 +1150,7 @@ EOC
         die join( $/, @errors ) if @errors;
 
         $result = [<$reader>];
-        
+
         alarm 0;
     }
 
@@ -1183,7 +1183,7 @@ sub pmgr_qagent_exec_or_die {
         die "Qemu Agent waiting for command return timeout";
     };
     alarm 600; # TODO: Configure and modify parameter
-    
+
     my $statusresult;
     do {
         sleep 0.1;
@@ -1199,7 +1199,7 @@ sub pmgr_qagent_exec_or_die {
             || $statusresult->{error} );
 
     alarm 0;
-    
+
     $statusresult;
 }
 
