@@ -471,13 +471,29 @@ Ext.define('PveMgr.view.WorkspaceController', {
 
     vmPanelSnapBtnClick: function(btn) {
         btn.disable(true);
-        const snaptab = btn.up('[itemId=snapTab]'); // Alternative Ext JS selector '#snapTab'
-        this.vmPanelSnapOps(snaptab, btn.getItemId());
-        btn.enable(true);
+        const vc = this;
+        
+        Ext.MessageBox.confirm(
+            'Требуется подтверждение',
+            'Подтверждение действия "' + btn.getText() + ' снэпшот"',
+
+            confirm => {
+                
+                if ( confirm === 'yes' ) {
+                    const snaptab = btn.up('[itemId=snapTab]');     // Alternative Ext JS selector '#snapTab'
+                    vc.vmPanelSnapOps(
+                        snaptab,
+                        btn.getItemId(),
+                        () => btn.enable(true)
+                    );
+                    setTimeout( () => btn.enable(true), 10000 );    // enable anyway if something goes wrong
+                }
+                
+            }).setIconCls('x-fa fa-play');
     },
 
     // Create, modify, rollback or delete snaphot, given treepanel with optionaly selected snapshot
-    vmPanelSnapOps: function(snaptab, op) {
+    vmPanelSnapOps: function(snaptab, op, callback) {
         const controller = this;
         const treepanel = snaptab.getComponent('snapTree');
         const opts = {snapAction: op};
@@ -517,6 +533,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
                 else {
                     Ext.Msg.alert('Error', resp.err.message);
                 }
+                if (callback, callback(resp));
             }
         );
     },
