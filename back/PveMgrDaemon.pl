@@ -34,7 +34,6 @@ use Time::HiRes qw (sleep);
 use constant SRVHOME    => "$FindBin::Bin/..";
 use constant FRONT      => SRVHOME . "/front";
 use constant EXTJS      => SRVHOME . '/extjs/current';
-use constant TASKLOGS   => SRVHOME . '/tasklogs/';
 use constant SCRIPTS    => SRVHOME . '/scripts/';
 
 use constant PMGR_USER    => 'pvemgr';
@@ -42,6 +41,8 @@ use constant PMGR_GROUP    => 'pvemgr';
 use constant PMGR_HOME    => '/var/lib/pvemgr';
 use constant PMGR_LOGDIR    => PMGR_HOME . '/logs/';
 use constant PMGR_SERVICE_PW_FILE    => PMGR_HOME . '/.priv/pvemgr';
+use constant TASKLOGS   => PMGR_HOME . '/tasklogs/';
+
 
 # switching to pvemgr UID
 my $uid = getpwnam(PMGR_USER);
