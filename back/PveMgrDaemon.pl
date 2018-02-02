@@ -807,7 +807,7 @@ sub pmgr_run_script {
 sub pmgr_cmd {
     my ($req, $pve, $cmd, $params) = @_;
 
-    my $logfile = strftime("%Y-%m-%d_%H-%M-%S", localtime);
+    my $logfile = strftime("%Y-%m-%d_%T", localtime);
     my ($ runcmd, $vmid );
     if ( $cmd eq 'getaddress' ) {
 
