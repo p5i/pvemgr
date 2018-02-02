@@ -387,19 +387,22 @@ Ext.define('PveMgr.view.WorkspaceController', {
     vmPanelShellKey: function( inFld, e, eOpts ) {
         const form = inFld.up();
         const codePalnel = form.up().prevChild(form);
+
         if (e.getKey() === e.ENTER) {
             this.vmPanelShellExec(inFld, codePalnel);
         } else if (e.getKey() === e.PAGE_UP) {
             codePalnel.scrollBy(0, -0.9*codePalnel.getHeight(), false);
+            e.stopEvent();
         } else if (e.getKey() === e.PAGE_DOWN) {
             codePalnel.scrollBy(0, 0.9*codePalnel.getHeight(), false);
+            e.stopEvent();
         }
-        e.stopEvent();
     },
     vmPanelShellClick: function( btn, e, eOpts ) {
         const form = btn.up();
         const codePalnel = form.up().prevChild(form);
         const inFld = form.prevChild(btn);
+
         this.vmPanelShellExec(inFld, codePalnel);
     },
 

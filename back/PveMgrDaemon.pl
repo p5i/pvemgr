@@ -91,24 +91,32 @@ $httpd->reg_cb (
         });
     },
 
+    # Check and verify some asynchronous and multiprocess aspects
+    # Must be disabled in production
     '/test' => sub {
         my ( $httpd, $req ) = @_;
         $httpd->stop_request;
 
-        ddx, $httpd->{condvar};
+        # Disabled here
+        return;
+
+        #~ ddx $httpd->{condvar};
         #~ $httpd->{condvar}->send;
-        ddx, $httpd->{condvar};
+        #~ ddx \$httpd->{condvar};
+
         # Test multiple parallel events with one final callback code 
         my $testtimer1;
         my $testtimer2;
         my $testtimer3;
         my $counter = 0;
+
         my $cb = sub {
             #$ENV{PATH} = '';
-            pp __LINE__, $counter;
+            ddx "Counter is $counter in callback";
             $counter--;
+            sleep 2;
             if ($counter > 0) {return};
-            pp __LINE__, 'respond finally';
+            ddx 'respond finally';
             my $txt = "CPU info:\n\n" . `/bin/cat /proc/cpuinfo`;
             undef $testtimer1;
             undef $testtimer2;
@@ -118,11 +126,27 @@ $httpd->reg_cb (
                 {'Content-Type' => 'text/plain'}, encode_json [$txt],
             ]);
         };
-        pp __LINE__, $cb;
+
+        #~ ddx $cb;
         $counter++;
+        fork_call {
+            for (0..2) {
+                ddx "Counter in fork $counter";
+                sleep 1;
+            }
+        } sub {
+            ddx "Counter after fork $counter";
+            $counter--;
+        };
         $testtimer1 = AnyEvent->timer (after => 2, cb => $cb);
+        sleep 5;
+        ddx "after first sleep";
+
         $counter++;
         $testtimer2 = AnyEvent->timer (after => 4, cb => $cb);
+        sleep 5;
+        ddx "after second sleep";
+
         $counter++;
         $testtimer3 = AnyEvent->timer (after => 7, cb => $cb);
     },
