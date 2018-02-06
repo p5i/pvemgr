@@ -185,7 +185,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
             return;
         }
         PveMgr.req(
-            "api/cmd",
+            {url: "api/cmd"},
             {
                 cmd: 'getaddress',
                 params: { vmid: data.vmid, node: data.node }
@@ -415,7 +415,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
         }
         let vmid = selection[0].getData().vmid;
         PveMgr.req(
-            "api/test",
+            {url: "api/test"},
             { vmid: selection[0].getData().vmid },
             function(resp) {
                 console.log(resp);

@@ -41,7 +41,7 @@ Ext.define('PveMgr.view.QuotaEditController', {
         let poolCbx = this.getView().getForm().findField('pool');
         button.disable(true);
 
-        PveMgr.req( '/api/poolquotasave', data, function(resp) {
+        PveMgr.req( {url: '/api/poolquotasave'}, data, function(resp) {
             console.log(arguments);
             if(resp.success) PveMgr.toast(resp.msg);
             else PveMgr.toast( resp.err.message );

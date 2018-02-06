@@ -58,10 +58,10 @@ Ext.application({
 
         Ext.state.Manager.setProvider(new Ext.state.CookieProvider());
 
-        PveMgr.req = function(url, data, callback) {
-            Ext.Ajax.request({
-                timeout: 900000, // TODO: Configure and modify request parameters
-                url: url,
+        PveMgr.req = function(reqParams, data, callback) {
+            return Ext.Ajax.request({
+                timeout: reqParams.timeout || 900000,
+                url: reqParams.url,
                 jsonData: data,
                 success: function(resp, opts) {
                     let r;
@@ -92,7 +92,7 @@ Ext.application({
         // opts = {vms: vms, users: users, misc:misc}
         PveMgr.deployVms = function(opts, callback) {
             PveMgr.req(
-                'api/vmdeploy',
+                {url: 'api/vmdeploy'},
                 opts,
                 r => {
                     if (r && r.success !== false) {
@@ -128,7 +128,7 @@ Ext.application({
         };
 
         PveMgr.qagentAction = function(vm, action, data, callback) {
-            PveMgr.req( urlapi + '/qagentaction', {
+            PveMgr.req( {url: urlapi + '/qagentaction'}, {
                 action,
                 data,
                 vmid: vm.vmid,
@@ -157,7 +157,7 @@ Ext.application({
 
         PveMgr.vmSnapshots = function(opts, callback) {
             PveMgr.req(
-                urlapi + '/vmsnapshots',
+                {url: urlapi + '/vmsnapshots'},
                 opts,
                 callback
             );

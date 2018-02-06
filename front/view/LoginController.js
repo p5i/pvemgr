@@ -28,7 +28,7 @@ Ext.define('PveMgr.view.LoginController', {
             let values = form.getValues();
             pwField.setRawValue();
 
-            PveMgr.req( form.url, values, (res) => {
+            PveMgr.req( {url: form.url}, values, (res) => {
                 view.el.unmask();
                 if (res.success) {
                     Ext.util.Cookies.set( 'pmgrLoginCookie',
