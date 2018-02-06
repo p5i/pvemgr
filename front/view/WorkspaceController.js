@@ -459,6 +459,10 @@ Ext.define('PveMgr.view.WorkspaceController', {
                         p.expanded = true;
                         p.expandable = false;
                     } else {
+                        // Ext JS bug here. If there is no children, and only one leaf in tree
+                        // with invisible root, the error happens when collapsing VM rowidget
+                        // with open snapshot tab
+                        // TODO: report or workaround
                         p.leaf = true;
                     }
                     if (p.name === 'current') p.iconCls = 'x-fa fa-desktop';
