@@ -36,12 +36,12 @@ use constant FRONT      => SRVHOME . "/front";
 use constant EXTJS      => SRVHOME . '/extjs/current';
 use constant SCRIPTS    => SRVHOME . '/scripts/';
 
-use constant PMGR_USER    => 'pvemgr';
-use constant PMGR_GROUP    => 'pvemgr';
-use constant PMGR_HOME    => '/var/lib/pvemgr';
-use constant PMGR_LOGDIR    => PMGR_HOME . '/logs/';
-use constant PMGR_SERVICE_PW_FILE    => PMGR_HOME . '/.priv/pvemgr';
-use constant TASKLOGS   => PMGR_HOME . '/tasklogs/';
+use constant PMGR_USER              => 'pvemgr';
+use constant PMGR_GROUP             => 'pvemgr';
+use constant PMGR_HOME              => '/var/lib/pvemgr';
+use constant PMGR_LOGDIR            => PMGR_HOME . '/logs/';
+use constant PMGR_SERVICE_PW_FILE   => PMGR_HOME . '/.priv/pvemgr';
+use constant TASKLOGS               => PMGR_HOME . '/tasklogs/';
 
 
 # switching to pvemgr UID
@@ -59,13 +59,22 @@ Proc::Daemon::Init({
     dont_close_fd   => [3,4,5],
 });
 
+#
+# <CONFIGURE PVE CLUSTER HERE>
+#
 
-#my $pvehost     = '10.100.9.100';
 my $pvehost     = '10.14.31.21';
 my $pvedebug    = 1;
-my $pverealm    = 'pam'; # 'pve' or 'pam'
+my $pverealm    = 'pam';                    # 'pve' or 'pam'
 my $pve;
 my $pveservice;
+
+use constant DEFAULT_PVE_NODE       => 'pve21'; # Used in deploy if target node not defined or logical false
+use constant DEFAULT_TEMPLATE_ID    => '100';   # Used in deploy if templata not defined or logical false
+
+#
+# </CONFIGURE PVE CLUSTER THERE>
+#
 
 my @pmgrSessions = ();
 
@@ -509,7 +518,77 @@ sub pmgr_dump {
     return "0x(" . $dmp  . ")";
 }
 
+sub pmgr_vmsdeploy {
+    my ($req, $pve, $vms, $callback) = @_;
+
+    my $logfile = strftime( "%Y-%m-%d_%T", localtime )
+                . "-deploy.log";
+    my @logfiles = ($logfile);
+
+    my $logfh;
+    eval {
+        open $logfh, '>', TASKLOGS.$logfile;
+        say $logfh "deploying " . join( ', ', map { $_->{hostname} } @{$vms} );
+    };
+    pmgr_fiasco($req, $@) if $@;
+
+    my ( @started, @finished );
+    foreach my $vm ( @{$vms} ) {
+
+        push @started, $vm;
+
+        my $vmlogfile = strftime("%Y-%m-%d_%T", localtime)
+            . "-deploy-$vm->{vmid}-$vm->{hostname}.log";
+        push @logfiles, $vmlogfile;
+
+        fork_call {
+            pmgr_vmdeploy( $pve, $vm, $vmlogfile );
+            return $vm;
+        } sub {
+            if ( !@_ ) {
+                say $@;
+            } else {
+                say $logfh @_ ? "Finished deploying $_[0]->{vmid}" :  
+                push @finished, shift;
+            }
+
+            if ( defined $callback ) {
+                $callback->({
+                    error => $@,
+                    complete => @started == @finished,
+                    started => \@started,
+                    finished => \@finished
+                });
+            }
+        };
+
+    }
+
+    return "Журналы:\n" . join("\n", @logfiles);
+}
+
 sub pmgr_vmdeploy {
+    my ($pve, $vm, $logfile) = @_;
+
+        my $node = pmgr_node( $pve, $vm->{node} || DEFAULT_PVE_NODE );
+        my $tmpl = $vm->{template} || DEFAULT_TEMPLATE_ID;
+        my $newid  = $vm->{vmid} || pmgr_newid();
+
+
+        my $tmpdir = "/var/lib/pvemgr/mnt/tmpsshfs_$node->{ip}_$$";
+
+        my @hz = capture {
+            system("mkdir $tmpdir && sshfs $node->{ip}:/var/lib/vz/images/$vm->{vmid} $tmpdir");
+        };
+
+        ddx @hz;
+
+        return;
+
+
+        return ($vm->{vmid}, $vm->{name});
+}
+sub pmgr_vmdeploy_bash {
     my ($pve, $vm, $logfile) = @_;
         my @cloncmd = (SCRIPTS . 'prepclone.sh');
         if($vm->{template}) {
@@ -650,12 +729,21 @@ sub pmgr_vm_snapshots {
         return \@snaps; 
 
     } elsif ($opts->{snapAction} eq 'modify') {
+
         $pve->put(
             "/nodes/$vm->{node}/qemu/$vm->{vmid}/snapshot/$opts->{snapname}/config",
             { description => $opts->{description} }
         );
-        # This request returns no data and now there is no sane way to check success of request
+
+        # This request returns undef data on success and now there is no sane way to check success of request.
+        # Client side solutions include: 1. Capture and parse output fo WARNING messages
+        # 2. Capture output in list context and verify number ofarguments (2 on error and 3 on success)
+        # 3. Try to access output and catch exception (e.g. with eval {})
+        # 4. Do manual HTTP request
+        # None of options is proper and reliable. Modification of PVE module is necessary again.
+
         # TODO: Modify 'action' method in Net::Proxmox::VE module to return something defined on success
+
         $result = "Задача на изменение снэпшота $opts->{snapname} отправлена";
 
     } elsif ($opts->{snapAction} eq 'takenew') {
@@ -830,55 +918,6 @@ sub pmgr_cmd {
 
     pmgr_success( $req, "Команда '$cmd' отправлена "
         . "Журнал: $logfile" );
-}
-
-sub pmgr_vmsdeploy {
-    my ($req, $pve, $vms, $callback) = @_;
-
-    my $logfile = strftime( "%Y-%m-%d_%T", localtime )
-                . "-deploy.log";
-    my @logfiles = ($logfile);
-
-    my $logfh;
-    eval {
-        open $logfh, '>', TASKLOGS.$logfile;
-        say $logfh "deploying " . join( ', ', map { $_->{hostname} } @{$vms} );
-    };
-    pmgr_fiasco($req, $@) if $@;
-
-    my ( @started, @finished );
-    foreach my $vm ( @{$vms} ) {
-
-        push @started, $vm;
-
-        my $vmlogfile = strftime("%Y-%m-%d_%T", localtime)
-            . "-deploy-$vm->{vmid}-$vm->{hostname}.log";
-        push @logfiles, $vmlogfile;
-
-        fork_call {
-            pmgr_vmdeploy( $pve, $vm, $vmlogfile );
-            return $vm;
-        } sub {
-            if ( !@_ ) {
-                say $@;
-            } else {
-                say $logfh @_ ? "Finished deploying $_[0]->{vmid}" :  
-                push @finished, shift;
-            }
-
-            if ( defined $callback ) {
-                $callback->({
-                    error => $@,
-                    complete => @started == @finished,
-                    started => \@started,
-                    finished => \@finished
-                });
-            }
-        };
-
-    }
-
-    return "Журналы:\n" . join("\n", @logfiles);
 }
 
 # "Returns" content array [ Content-Type, Content body ]
@@ -1228,8 +1267,9 @@ sub pmgr_qagent_exec_or_die {
     $statusresult;
 }
 
+# Get node
 sub pmgr_node {
-    my ( $pve, $node ) = @_;
+    my ( $pve, $nodename ) = @_;
     my $nodes = $pve->get('/cluster/status');
 
 # User may not have privileges to access /cluster/status
@@ -1238,8 +1278,13 @@ sub pmgr_node {
 # Using latter. Could be changed later
 
     if ($nodes) {
-        my @node = grep { $_->{name} eq $node } @$nodes;
+        my @node = grep {
+            $_->{name} eq $nodename and
+            $_->{type} eq 'node'
+        } @$nodes;
+
         return $node[0];
+
     } else {
         my $ssh = Net::OpenSSH->new("root\@$pvehost");
         $nodes = $ssh->capture('cat /etc/pve/.members');
@@ -1247,7 +1292,7 @@ sub pmgr_node {
         $nodes =~ s/\n//g;
         $nodes = decode_json($nodes);
 
-        return $nodes->{nodelist}{$node};
+        return $nodes->{nodelist}{$nodename};
     }
 }
 
