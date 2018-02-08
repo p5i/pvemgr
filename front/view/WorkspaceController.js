@@ -13,6 +13,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
         Ext.getStore('storageStore').load();
         Ext.getStore('poolStore').load();
         Ext.getStore('taskLogStore').load();
+        Ext.getStore('nodeStore').load();
         Ext.Ajax.on('requestexception', function(conn, response, options) {
             if (response.status == 401) { // auth failure
                 me.showLogin();

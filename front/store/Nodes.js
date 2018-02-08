@@ -12,5 +12,4 @@ Ext.define('PveMgr.store.Nodes', {
     },
     singleton: true,
     storeId: 'nodeStore',
-    autoLoad: true,
 });
