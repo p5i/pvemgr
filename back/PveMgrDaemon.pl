@@ -30,6 +30,7 @@ use Net::Proxmox::VE;
 use Proc::Daemon;
 use Net::OpenSSH;
 use Time::HiRes qw (sleep);
+require Data::UUID;
 
 use constant SRVHOME    => "$FindBin::Bin/..";
 use constant FRONT      => SRVHOME . "/front";
@@ -41,22 +42,42 @@ use constant PMGR_GROUP             => 'pvemgr';
 use constant PMGR_HOME              => '/var/lib/pvemgr';
 use constant PMGR_LOGDIR            => PMGR_HOME . '/logs/';
 use constant PMGR_SERVICE_PW_FILE   => PMGR_HOME . '/.priv/pvemgr';
-use constant TASKLOGS               => PMGR_HOME . '/tasklogs/';
+use constant PMGR_TASKLOGS               => PMGR_HOME . '/tasklogs/';
+use constant PMGR_MNT               => PMGR_HOME . '/mnt/';
 
-
+#
 # switching to pvemgr UID
+#
+
 my $uid = getpwnam(PMGR_USER);
 my $gid = ( getgrnam(PMGR_GROUP) );
-$) = "$gid $gid";
-$> = $uid;
 
-ddx "UID: $>, GID: $)";
+# Not strictly necessary to add kvm group,
+# but with hardware virtualization libguestfs runs 6 time faster
+my $kvmgid = ( getgrnam('kvm') );
 
+$( = $) = "$gid " . ($kvmgid or $gid);
+$< = $> = $uid;
+
+ddx "UID: $<, $>; GID: $(, $)";
+
+# Redefine some environment variables
+delete $ENV{XDG_RUNTIME_DIR};   # used by libguestfs get-sockdir function
+$ENV{USER} = PMGR_USER;         # used by libguestfs during appliance building
+
+# Just another one workaround for libguestfs https://bugzilla.redhat.com/show_bug.cgi?id=991641
+# Maybe only for old libguestfs versions. 1.34 seams to be unaffected
+# chmod 0644, glob "/boot/vmlinuz*";
+
+
+#
+# Daemonizing
+#
 Proc::Daemon::Init({
     child_STDOUT    => '+>>' . PMGR_LOGDIR . 'out.log',
     child_STDERR    => '+>>' . PMGR_LOGDIR . 'debug.log',
     work_dir        => PMGR_HOME,
-    dont_close_fd   => [3,4,5],
+    dont_close_fd   => [3,4,5],                            # Not closing some descriptors like socket and AnyEvent inodes
 });
 
 #
@@ -70,7 +91,7 @@ my $pve;
 my $pveservice;
 
 use constant DEFAULT_PVE_NODE       => 'pve21'; # Used in deploy if target node not defined or logical false
-use constant DEFAULT_TEMPLATE_ID    => '100';   # Used in deploy if templata not defined or logical false
+use constant DEFAULT_TEMPLATE_ID    => '100';   # Used in deploy if template not defined or logical false
 
 #
 # </CONFIGURE PVE CLUSTER THERE>
@@ -315,19 +336,26 @@ sub pmgr_api_request { # <API call>
                                 $pool->{allocated} );
 
             return @vms;
+
         } sub {
             my @vms = @_;
             pmgr_fiasco($req, $@) unless @_;
+
             eval {
-                my $msg = pmgr_vmsdeploy( $req, $pve, \@vms, sub {
+                my $msg = pmgr_vmsdeploy( $pve, \@vms, sub {
+                    ddx "After deploy callback";
+                    ddx @_;
                     # There whill be after deploy handlers
+                    # MAYBE!
+                    pmgr_success($req, @_);
                 } );
 
-                # Response on successful start of deploy (not finish)
-                pmgr_success($req, $msg);
+                ddx "After deploy eval";
+                #~ pmgr_success($req, $msg);
             };
-            pmgr_fiasco($req, $@) unless @_;
-        }
+            ddx "Fiasco after deploy eval: $@" if $@;
+            pmgr_fiasco($req, $@) if $@;
+        };
 
 
     } elsif ( $path eq '/api/vmaction' ) {
@@ -519,20 +547,17 @@ sub pmgr_dump {
 }
 
 sub pmgr_vmsdeploy {
-    my ($req, $pve, $vms, $callback) = @_;
+    my ($pve, $vms, $callback) = @_;
 
     my $logfile = strftime( "%Y-%m-%d_%T", localtime )
                 . "-deploy.log";
     my @logfiles = ($logfile);
 
-    my $logfh;
-    eval {
-        open $logfh, '>', TASKLOGS.$logfile;
-        say $logfh "deploying " . join( ', ', map { $_->{hostname} } @{$vms} );
-    };
-    pmgr_fiasco($req, $@) if $@;
+    open my $logfh, '>', PMGR_TASKLOGS.$logfile;
+    say $logfh "deploying " . join( ', ', map { $_->{hostname} } @{$vms} );
 
-    my ( @started, @finished );
+    my ( @started, @returned, @finished );
+
     foreach my $vm ( @{$vms} ) {
 
         push @started, $vm;
@@ -541,26 +566,44 @@ sub pmgr_vmsdeploy {
             . "-deploy-$vm->{vmid}-$vm->{hostname}.log";
         push @logfiles, $vmlogfile;
 
+        system "id";
+        ddx "system";
         fork_call {
-            pmgr_vmdeploy( $pve, $vm, $vmlogfile );
-            return $vm;
+
+            pmgr_vmdeploy( $pve, $vm, $vmlogfile);
+
         } sub {
-            if ( !@_ ) {
-                say $@;
+
+            my $result = shift;
+            ddx $result;
+
+            if ( !$result->{success} ) {
+                say $logfh "Error deploying $result->{vmid}; "
+                    . join( '; ', @{$result->{deployErrors}} );
             } else {
-                say $logfh @_ ? "Finished deploying $_[0]->{vmid}" :  
-                push @finished, shift;
+                say $logfh @_ ? "Finished deploying $result->{vmid}" :  
+                push @finished, $result;
             }
 
-            if ( defined $callback ) {
-                $callback->({
-                    error => $@,
-                    complete => @started == @finished,
-                    started => \@started,
-                    finished => \@finished
-                });
+            push @returned, $result;
+
+            ddx scalar @started, scalar @returned, scalar @finished;
+
+            if ( @returned == @started ) {
+                if ( defined $callback ) {
+                    ddx @started;
+                    ddx @finished;
+                    ddx @started == @finished;
+                    $callback->({
+                        error => $@,
+                        complete => @started == @finished,
+                        started => \@started,
+                        finished => \@finished,
+                    });
+                }
             }
         };
+        ddx "Started deploy of $vm->{vmid}";
 
     }
 
@@ -568,25 +611,117 @@ sub pmgr_vmsdeploy {
 }
 
 sub pmgr_vmdeploy {
-    my ($pve, $vm, $logfile) = @_;
+    my ( $pve, $vm, $logfile ) = @_;
 
-        my $node = pmgr_node( $pve, $vm->{node} || DEFAULT_PVE_NODE );
-        my $tmpl = $vm->{template} || DEFAULT_TEMPLATE_ID;
-        my $newid  = $vm->{vmid} || pmgr_newid();
+        my $nodename = $vm->{node} || DEFAULT_PVE_NODE;
+        my $node = pmgr_node( $pve, $nodename );
+        my $tmplId = $vm->{template} || DEFAULT_TEMPLATE_ID;
+        my $newid = $vm->{vmid} || pmgr_newid();
+        my $mask = $vm->{mask} || 24;
+        my $ip = $vm->{ip};
+        my $gw = $vm->{gateway};
 
+        my $actualNewId;
+        my $dplOpts = {};
+        $dplOpts->{pool} = $vm->{poolid} if $vm->{poolid};
+        $dplOpts->{storage} = $vm->{storage} if $vm->{storage};
+        my $format = 'raw';
+        $dplOpts->{full} = 1;
+        if ( defined $vm->{full} && $vm->{full} == 0 ){
+            $dplOpts->{full} = 0;
+            $format = 'qcow2';
+        } else {
+            $dplOpts->{full} = 1;
+        }
 
-        my $tmpdir = "/var/lib/pvemgr/mnt/tmpsshfs_$node->{ip}_$$";
+        eval {
 
-        my @hz = capture {
-            system("mkdir $tmpdir && sshfs $node->{ip}:/var/lib/vz/images/$vm->{vmid} $tmpdir");
+            for (my $i = 0;; $i++) {
+                die "Error deploying VM $newid after "
+                    . ($i-1) . " retries. "
+                    . "Last tried VMID $actualNewId."
+                if $i > 20; # TODO: remove hardcoded number and add option
+
+                $actualNewId = $newid + $i;
+                $dplOpts->{newid} = $actualNewId;
+
+                my $result = $pve->post(
+                    "/nodes/$nodename/qemu/$tmplId/clone",
+                    $dplOpts
+                );
+                ddx $result;
+
+                last if $result;
+            }
+
+            my $tmpdir = PMGR_MNT . "sshfs_$node->{ip}_${actualNewId}_"
+                . substr( Data::UUID->new->create_hex(), 2 );
+            my $mntTarget = "root\@$node->{ip}:/var/lib/vz/images/$actualNewId";
+
+            my ($out, $err, $res) = capture {
+                system("id; mkdir $tmpdir && sshfs -ouid=999 -ogid=999 $mntTarget $tmpdir");
+            };
+
+            ddx ($out, $err, $res);
+            die "Error accessing VM image; Ошибки'$err'; Вывод: '$out'"
+            if $res or $err;
+
+            my $prepcmd1 =
+                    "virt-sysprep --format $format --operations lvm-uuids,customize "
+                  . "--hostname $vm->{hostname} "
+                  . "-a $tmpdir/vm-$actualNewId-disk-1.$format";
+            $prepcmd1 = "time guestfish -a /dev/null run";
+            ddx $prepcmd1;
+
+            #~ sleep 15; # TODO implement task completion checking instead of timeout
+            open ( FH, '>', PMGR_TASKLOGS . $logfile );
+
+            my @c1 = split(/\s/, $prepcmd1);
+            ddx @c1;
+            use IO::Tee;
+            use IO::File;
+            my $tee = new IO::Tee(\*STDOUT, '>' . PMGR_TASKLOGS . $logfile);
+            print $tee "1234567";
+            #~ IPC::Run::run( \@c1, '>&', $tee );
+
+            #~ (my $out, my $res) = tee { system($prepcmd1) };
+            #~ print FH $out;
+            #~ my ($out, $err, $res) capture { system($prepcmd1) };
+
+            ddx ($out, $err, $res);
+            die "Error первого sysprep; Ошибки'$err'; Вывод: '$out'"
+            if $res or $err;
+
+            my $commandplus='';
+            if ($ip) {
+                if ($gw) {
+                    $commandplus .= "; sed -ri 's/(iface .* )dhcp/\1static\n\taddress $ip\n\tnetmask $mask\n\tgateway $gw/' /etc/network/interfaces"
+                } else {
+                    $commandplus .= "; sed -ri 's/(iface .* )dhcp/\1static\n\taddress $ip\n\tnetmask $mask/' /etc/network/interfaces"
+                }
+            }
+
+            my $prepcmd2 = "virt-sysprep --operations customize "
+                  . "-a $tmpdir/vm-$actualNewId-disk-1.qcow2";
+                  "--run-command \"update-grub;grub-install /dev/sda$commandplus\"";
+
+            ddx $prepcmd2;
+
+            #~ my ($out, $err, $res) = capture { system($prepcmd1) };
+
+            ddx ($out, $err, $res);
+            die "Error второго sysprep; Ошибки'$err'; Вывод: '$out'"
+                if $res or $err;
+
         };
+        if ($@) {
+            push @{$vm->{deployErrors}},$@;
+            $vm->{success} = 0;
+        } else {
+            $vm->{success} = 1;
+        }
 
-        ddx @hz;
-
-        return;
-
-
-        return ($vm->{vmid}, $vm->{name});
+        return $vm;
 }
 sub pmgr_vmdeploy_bash {
     my ($pve, $vm, $logfile) = @_;
@@ -628,7 +763,7 @@ sub pmgr_vmdeploy_bash {
 
         ddx join ( ' ', @cloncmd );
         IPC::Run::run( \@cloncmd,
-            '>&', TASKLOGS . $logfile);
+            '>&', PMGR_TASKLOGS . $logfile);
 
         return ($vm->{vmid}, $vm->{name});
 }
@@ -641,7 +776,6 @@ sub pmgr_login {
     my ($req) = @_;
     my $creds = pmgr_reqcontent($req);
 
-    require Data::UUID;
     my $session = {
         sid => substr ( Data::UUID->new->create_hex(), 2 )
     };
@@ -884,7 +1018,7 @@ sub pmgr_run_script {
             errorMsg => 'Неизвестный скрипт ' . $params->{script},
         };
     }
-    $cmd .= ' > ' . TASKLOGS . "$logtime-$params->{script}.log 2>&1 &";
+    $cmd .= ' > ' . PMGR_TASKLOGS . "$logtime-$params->{script}.log 2>&1 &";
     ddx system( $cmd );
     return {
         success => 1,
@@ -913,7 +1047,7 @@ sub pmgr_cmd {
         pmgr_fiasco( $req, "Неизвестная команда: $cmd" );
         return;
     }
-    open my $logfh, '>', TASKLOGS . "$logfile.log";
+    open my $logfh, '>', PMGR_TASKLOGS . "$logfile.log";
     capture { system($runcmd . '&') } stdout => $logfh, stderr => $logfh;
 
     pmgr_success( $req, "Команда '$cmd' отправлена "
@@ -928,7 +1062,7 @@ sub pmgr_tasklogs {
 
     fork_call {
         if(!$path) {
-            my $tasklogs = TASKLOGS;
+            my $tasklogs = PMGR_TASKLOGS;
             my @files;
             for my $file (`ls -t $tasklogs | head -n 1000`) {
                 next if $file =~ /^\./;
@@ -937,7 +1071,7 @@ sub pmgr_tasklogs {
             return [ 'text/plain', encode_json(\@files) ];
 
         } else {
-            substr $path, 0, 0, TASKLOGS;
+            substr $path, 0, 0, PMGR_TASKLOGS;
             open my $fh, '<', $path . '.log'
                 or die "error opening file $path: $!";
             return [ mimetype($path . '.log'), do {local $/; <$fh>} ];
@@ -1126,7 +1260,14 @@ sub pmgr_quota_check {
         map { $_->{diskSize} } @{ $vms };
     ddx $cpuReq, $memReq, $diskReq, $alloc;
 
+    die "Квота ЦПУ исчерпана"
+        if $quota->{cpuMax} < $alloc->{cpu} + $cpuReq;
 
+    die "Квота ОЗУ исчерпана"
+        if $quota->{memMax} < $alloc->{mem}/1024/1024/1024 + $memReq/1024;
+
+    die "Дисковая квота исчерпана"
+        if $quota->{diskMax} < $alloc->{diskSize} + $diskReq;
 }
 
 # Send request to QEMU Guest Agent over ssh tunnel and return result as hash.

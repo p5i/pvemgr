@@ -92,7 +92,7 @@ Ext.application({
         // opts = {vms: vms, users: users, misc:misc}
         PveMgr.deployVms = function(opts, callback) {
             PveMgr.req(
-                {url: 'api/vmdeploy'},
+                {url: 'api/vmdeploy', timeout: 500000},
                 opts,
                 r => {
                     if (r && r.success !== false) {

@@ -67,7 +67,7 @@ Ext.define('PveMgr.view.VmGrid', {
             widget: {
                 xtype: 'pvemgr.vmpanel',
                 height: 400,
-                maxWidth: 800,
+                maxWidth: 900,
                 iconCls: 'x-fa fa-desktop',
                 bind: { // Without this bind, binds in VmPanel definition doesn't work
                     title: '{record.vmid} ({record.name})',

@@ -48,6 +48,16 @@
                 background-color: beige;
             }
             /*
+            .x-unselectable {
+                user-select: text !important;
+                -o-user-select: text !important;
+                -ms-user-select: text !important;
+                -moz-user-select: text !important;
+                -webkit-user-select: text !important;
+                cursor: default;
+            }
+            */
+            /*
             .pvemgr-vm-actioncolumn .x-action-col-icon{
                 font-size: 13;
                 height: 13;
