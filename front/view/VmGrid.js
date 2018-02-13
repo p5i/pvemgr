@@ -9,6 +9,11 @@ Ext.define('PveMgr.view.VmGrid', {
 
     features: [{ftype: 'groupingsummary'},{ftype: 'summary'} ],
 
+    listeners: {
+        //~ onScrollEnd: 'vmGridScrollMove',
+        onScrollEnd: function(){ console.log(arguments)},
+    },
+
     header: {
         items: [
             {

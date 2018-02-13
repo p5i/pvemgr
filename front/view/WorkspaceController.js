@@ -27,6 +27,11 @@ Ext.define('PveMgr.view.WorkspaceController', {
             }
         } );
         me.getViewModel().set( 'loggedUser', sp.get('loggedUser') );
+
+        me.lookupReference('vmGrid').getView()
+            .on('scrollend', 'vmGridScrollMove');
+
+
     }, // </init>
 
 
@@ -50,6 +55,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
                         this.on( 'pmgrlogin', 'load', store, {single: true} );
                     }
                 },
+                endUpdate: 'vmGridScrollMove',
             },
             '#vmGridStore': {
                 groupchange: function(store, grouper) {
@@ -544,6 +550,33 @@ Ext.define('PveMgr.view.WorkspaceController', {
                 if (callback, callback(resp));
             }
         );
+    },
+
+    vmGridScrollMove: function() {
+        const vmGrid = this.lookupReference('vmGrid');
+        const vmGridView = vmGrid.getView();
+        
+
+        let vmids = [];
+        const first = vmGridView.getFirstVisibleRowIndex();
+        const last = vmGridView.getLastVisibleRowIndex();
+        let i;
+        for ( let i = first; i <= last; i++ ) {
+            let vmData = vmGridView.getRecord(i).getData();
+            if ( vmData.config ) continue;
+            vmids.push(vmData.vmid);
+        }
+        console.log(vmids);
+
+        
+        PveMgr.req(
+            {apiurl: '/vms'},
+            {vmids},
+            function() {
+                console.log(this, arguments);
+            }
+        );
+
     },
 
 }); // </PveMgr.view.WorkspaceController>

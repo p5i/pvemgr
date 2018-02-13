@@ -45,6 +45,11 @@ use constant PMGR_SERVICE_PW_FILE   => PMGR_HOME . '/.priv/pvemgr';
 use constant PMGR_TASKLOGS               => PMGR_HOME . '/tasklogs/';
 use constant PMGR_MNT               => PMGR_HOME . '/mnt/';
 
+# Just another one workaround for libguestfs https://bugzilla.redhat.com/show_bug.cgi?id=991641
+
+ddx glob "/boot/vmlinuz*";
+ddx chmod 0644, glob "/boot/vmlinuz*";
+
 #
 # switching to pvemgr UID
 #
@@ -65,17 +70,13 @@ ddx "UID: $<, $>; GID: $(, $)";
 delete $ENV{XDG_RUNTIME_DIR};   # used by libguestfs get-sockdir function
 $ENV{USER} = PMGR_USER;         # used by libguestfs during appliance building
 
-# Just another one workaround for libguestfs https://bugzilla.redhat.com/show_bug.cgi?id=991641
-# Maybe only for old libguestfs versions. 1.34 seams to be unaffected
-# chmod 0644, glob "/boot/vmlinuz*";
-
-
 #
 # Daemonizing
 #
 Proc::Daemon::Init({
     child_STDOUT    => '+>>' . PMGR_LOGDIR . 'out.log',
-    child_STDERR    => '+>>' . PMGR_LOGDIR . 'debug.log',
+    child_STDERR    => '+>>' . PMGR_LOGDIR . 'out.log',
+    #~ child_STDERR    => '+>>' . PMGR_LOGDIR . 'debug.log',
     work_dir        => PMGR_HOME,
     dont_close_fd   => [3,4,5],                            # Not closing some descriptors like socket and AnyEvent inodes
 });
@@ -85,7 +86,7 @@ Proc::Daemon::Init({
 #
 
 my $pvehost     = '10.14.31.21';
-my $pvedebug    = 1;
+my $pvedebug    = 0;
 my $pverealm    = 'pam';                    # 'pve' or 'pam'
 my $pve;
 my $pveservice;
@@ -288,7 +289,11 @@ sub pmgr_api_request { # <API call>
 
     # Now user authenticated and logged to PVE API
     if ( $path eq '/api/vms' ) {
-        pmgr_success ($req, pmgr_vms($pve));
+        if ( my $content = pmgr_reqcontent($req) ) {
+            pmgr_success ( $req, pmgr_vms($pve, $content->{vmids}) );
+        } else {
+            pmgr_success ( $req, pmgr_vms($pve) );
+        }
 
     } elsif ( $path eq '/api/storages' ) {
         pmgr_success ($req, pmgr_storages($pve));
@@ -344,7 +349,7 @@ sub pmgr_api_request { # <API call>
             eval {
                 my $msg = pmgr_vmsdeploy( $pve, \@vms, sub {
                     ddx "After deploy callback";
-                    ddx @_;
+                    ddx scalar @_;
                     # There whill be after deploy handlers
                     # MAYBE!
                     pmgr_success($req, @_);
@@ -513,6 +518,7 @@ sub pmgr_respond {
 
 sub pmgr_reqcontent {
     my $req = shift;
+    return unless $req->content;
     my $reqparams = eval {decode_json($req->content)};
     if($@) {
         pmgr_fiasco($req, $@);
@@ -591,8 +597,8 @@ sub pmgr_vmsdeploy {
 
             if ( @returned == @started ) {
                 if ( defined $callback ) {
-                    ddx @started;
-                    ddx @finished;
+                    ddx scalar @started;
+                    ddx scalar @finished;
                     ddx @started == @finished;
                     $callback->({
                         error => $@,
@@ -674,23 +680,33 @@ sub pmgr_vmdeploy {
             ddx $prepcmd1;
 
             #~ sleep 15; # TODO implement task completion checking instead of timeout
-            open ( FH, '>', PMGR_TASKLOGS . $logfile );
+            open ( my $fh, '>', PMGR_TASKLOGS . $logfile );
+            open ( my $out2, '>&', STDOUT );
 
             my @c1 = split(/\s/, $prepcmd1);
             ddx @c1;
-            use IO::Tee;
-            use IO::File;
-            my $tee = new IO::Tee(\*STDOUT, '>' . PMGR_TASKLOGS . $logfile);
-            print $tee "1234567";
-            #~ IPC::Run::run( \@c1, '>&', $tee );
+            {
+                use File::Tee;
+                #~ ddx File::Tee::tee(*STDOUT, PMGR_TASKLOGS . $logfile);
+                ddx File::Tee::tee($fh, $out2);
+                print $fh "1234567";
+                $ENV{LIBGUESTFS_DEBUG} = 1;
+                IPC::Run::run( \@c1, '>&', $fh );
+                print $fh "7654321";
+            }
+            ddx close $fh
+                or ddx $!;
+            sleep 50;
+
+            #~ IPC::Run::run( \@c1, '>&' );
 
             #~ (my $out, my $res) = tee { system($prepcmd1) };
             #~ print FH $out;
             #~ my ($out, $err, $res) capture { system($prepcmd1) };
 
-            ddx ($out, $err, $res);
+            #~ ddx ($out, $err, $res);
             die "Error первого sysprep; Ошибки'$err'; Вывод: '$out'"
-            if $res or $err;
+                if $res or $err;
 
             my $commandplus='';
             if ($ip) {
@@ -826,14 +842,21 @@ sub pmgr_realms {
 }
 
 sub pmgr_vms {
-    my ($pve) = @_;
+    my ($pve, $vmids) = @_;
 
     my $vms = $pve->get_cluster_resources( type => 'vm' );
 
-    foreach my $vm ( @{$vms} ) {
-        $vm->{config} =
-            $pve->get("/nodes/$vm->{node}/$vm->{id}/config"); 
+
+    if ($vmids) {
+
+        $vms = [ grep { $_->{vmid} ~~ @{$vmids} } @{$vms} ];
+
+        foreach my $vm ( @{$vms} ) {
+            $vm->{config} =
+                $pve->get("/nodes/$vm->{node}/$vm->{id}/config"); 
+        }
     }
+
     return $vms;
 }
 

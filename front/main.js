@@ -61,7 +61,7 @@ Ext.application({
         PveMgr.req = function(reqParams, data, callback) {
             return Ext.Ajax.request({
                 timeout: reqParams.timeout || 900000,
-                url: reqParams.url,
+                url: reqParams.url || urlapi + reqParams.apiurl,
                 jsonData: data,
                 success: function(resp, opts) {
                     let r;
@@ -128,7 +128,7 @@ Ext.application({
         };
 
         PveMgr.qagentAction = function(vm, action, data, callback) {
-            PveMgr.req( {url: urlapi + '/qagentaction'}, {
+            PveMgr.req( {apiurl: '/qagentaction'}, {
                 action,
                 data,
                 vmid: vm.vmid,
@@ -157,7 +157,7 @@ Ext.application({
 
         PveMgr.vmSnapshots = function(opts, callback) {
             PveMgr.req(
-                {url: urlapi + '/vmsnapshots'},
+                {apiurl: '/vmsnapshots'},
                 opts,
                 callback
             );

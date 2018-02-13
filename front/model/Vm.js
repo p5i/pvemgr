@@ -2,7 +2,7 @@ Ext.define('PveMgr.model.Vm', {
     extend: 'Ext.data.Model',
     idProperty:'vmid',
     fields: [
-        {name: 'vmid', type: 'int'},
+        { name: 'vmid', type: 'int' },
         'name',
         'status',
         'uptime',
@@ -38,6 +38,7 @@ Ext.define('PveMgr.model.Vm', {
             calculate: d => {
                 if (d.vmid == 9001) console.log(d);
                 if(!d.vmid) return; // For groupping to work properly
+                if (!d.config) return;
                 let dscr = d.config.description;
                 return dscr ?
                     (dscr.match(/(?:^|.*\n)IP: ([^;]+);.*/, '$1') || [])[1]
