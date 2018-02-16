@@ -213,6 +213,7 @@ Ext.define('PveMgr.view.WorkspaceModel', {
                         filters: [
                             function(m) {
                                 let dA = m.getData().diskarray;
+                                if (!dA) return;
                                 return (dA.map(d => d.storage).indexOf(el.storage) != -1);
                             },
                         ],

@@ -16,7 +16,7 @@ Ext.define('PveMgr.model.Pool', {
                 //~ .map(vm => vm.vmid).join(' ,'),
         {
             name: 'vms',
-            calculate: record => console.log(record),
+            //~ calculate: record => console.log(record),
         },
         {
             name: 'resources',

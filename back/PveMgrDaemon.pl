@@ -846,10 +846,11 @@ sub pmgr_vms {
 
     my $vms = $pve->get_cluster_resources( type => 'vm' );
 
+    return $vms if !$vmids;
 
-    if ($vmids) {
+    for my $vmid (@{$vmids}) {
 
-        $vms = [ grep { $_->{vmid} ~~ @{$vmids} } @{$vms} ];
+        #~ $vms = [ grep { $_->{vmid} ~~ @{$vmids} } @{$vms} ];
 
         foreach my $vm ( @{$vms} ) {
             $vm->{config} =

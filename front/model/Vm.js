@@ -61,7 +61,8 @@ Ext.define('PveMgr.model.Vm', {
         },{
             name: 'diskarray',
             calculate: function(d) {
-                let dA = Object.keys(d)
+                if(!d['config']) return;
+                let dA = Object.keys(d['config'])
                     .filter(el => el.match(/^scsi\d|^virtio\d|^ide\d|^sata\d/))
                     .filter(el => d[el].match(/^(?!none,).*/))
                     .map( key => {
@@ -84,12 +85,14 @@ Ext.define('PveMgr.model.Vm', {
         },{
             name: 'storage',
             calculate: function(d) {
+                if (!d.diskarray) return;
                 let a = d.diskarray;
                 return [...new Set(a.map(el => el.storage))].join(', ');
             },
         },{
             name: 'disks',
             calculate: function(d) {
+                if (!d.diskarray) return;
                 return d.diskarray.map(
                     el => el.storage + ' ' + (el.params.size || '')
                 ).join(', ');

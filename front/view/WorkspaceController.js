@@ -9,7 +9,9 @@ Ext.define('PveMgr.view.WorkspaceController', {
         let me = this;
         let sp = Ext.state.Manager.getProvider();
 
-        Ext.getStore('vmStore').load();
+        //~ Ext.getStore('vmStore').load();
+        me.vmGridLoad();
+
         Ext.getStore('storageStore').load();
         Ext.getStore('poolStore').load();
         Ext.getStore('taskLogStore').load();
@@ -29,7 +31,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
         me.getViewModel().set( 'loggedUser', sp.get('loggedUser') );
 
         me.lookupReference('vmGrid').getView()
-            .on('scrollend', 'vmGridScrollMove');
+            .on('scrollend', 'vmGridGetDetails');
 
 
     }, // </init>
@@ -45,6 +47,7 @@ Ext.define('PveMgr.view.WorkspaceController', {
         store: {
             '#vmStore': {
                 load: function(store, records, successful, operation) {
+                    console.log('load vmStore');
                     if (successful) {
                         let vm = this.getViewModel();
                         let data = store.getProxy().getReader().rawData.data
@@ -52,10 +55,11 @@ Ext.define('PveMgr.view.WorkspaceController', {
                         vm.set('vmData', data);
                     } else {
                         if (operation.error.status == 401);
-                        this.on( 'pmgrlogin', 'load', store, {single: true} );
+                        //~ this.on( 'pmgrlogin', 'load', store, {single: true} );
+                        this.on( 'pmgrlogin', function() {console.log(this.vmGridLoad)} );
                     }
                 },
-                endUpdate: 'vmGridScrollMove',
+                //~ endUpdate: 'vmGridGetDetails',
             },
             '#vmGridStore': {
                 groupchange: function(store, grouper) {
@@ -552,7 +556,36 @@ Ext.define('PveMgr.view.WorkspaceController', {
         );
     },
 
-    vmGridScrollMove: function() {
+    vmGridLoad: function() {
+        const vmGrid = this.lookupReference('vmGrid');
+        const me = this;
+
+        PveMgr.req(
+            {apiurl: '/vms'},
+            {vmids: null},
+            function(srvData) {
+                const store = vmGrid.getStore();
+                const reader = store.getProxy().getReader();
+                let data = reader.read(srvData); // returns Ext.data.ResultSet
+                let toInsert = [];
+
+                data.getRecords().forEach( function(r) {
+                    let d = r.getData();
+                    let oldrecord = store.getById(d.vmid);
+                    //~ r.data.config = {};
+                    if (!oldrecord) {
+                        toInsert.push(r);
+                    }
+                });
+                store.insert(store.data.length, toInsert );
+                console.log('vmStore Loaded');
+                me.on( 'pmgrlogin', me.vmGridLoad );
+                //~ Ext.defer(me.vmGridGetDetails, 30000, me);
+            }
+        );
+    },
+
+    vmGridGetDetails: function() {
         const vmGrid = this.lookupReference('vmGrid');
         const vmGridView = vmGrid.getView();
         
@@ -566,14 +599,24 @@ Ext.define('PveMgr.view.WorkspaceController', {
             if ( vmData.config ) continue;
             vmids.push(vmData.vmid);
         }
-        console.log(vmids);
 
-        
+        if (!vmids.length) return;
         PveMgr.req(
             {apiurl: '/vms'},
             {vmids},
-            function() {
-                console.log(this, arguments);
+            function(srvData) {
+                console.log(srvData);
+                const store = vmGrid.getStore();
+                //~ const reader = store.getProxy().getReader();
+                //~ let data = reader.read(srvData); // returns Ext.data.ResultSet
+                srvData.data.forEach( function(d) {
+                    if (!d.config) return;
+                    let oldrecord = store.getById(d.vmid);
+                    oldrecord.beginEdit();
+                    oldrecord.data = Ext.create(store.getModel(), d).data;
+                    oldrecord.endEdit();
+                    //~ oldrecord.commit(true);
+                });
             }
         );
 
