@@ -86,7 +86,7 @@ Proc::Daemon::Init({
 #
 
 my $pvehost     = '10.14.31.21';
-my $pvedebug    = 0;
+my $pvedebug    = 1;
 my $pverealm    = 'pam';                    # 'pve' or 'pam'
 my $pve;
 my $pveservice;
@@ -288,6 +288,7 @@ sub pmgr_api_request { # <API call>
     } # </Authentication>
 
     # Now user authenticated and logged to PVE API
+
     if ( $path eq '/api/vms' ) {
         if ( my $content = pmgr_reqcontent($req) ) {
             pmgr_success ( $req, pmgr_vms($pve, $content->{vmids}) );
@@ -848,15 +849,14 @@ sub pmgr_vms {
 
     return $vms if !$vmids;
 
-    for my $vmid (@{$vmids}) {
-
         #~ $vms = [ grep { $_->{vmid} ~~ @{$vmids} } @{$vms} ];
 
         foreach my $vm ( @{$vms} ) {
-            $vm->{config} =
-                $pve->get("/nodes/$vm->{node}/$vm->{id}/config"); 
+            if ( $vm->{vmid} ~~ @{$vmids} ) {
+                $vm->{config} =
+                    $pve->get("/nodes/$vm->{node}/$vm->{id}/config");
+            }
         }
-    }
 
     return $vms;
 }

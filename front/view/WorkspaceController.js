@@ -580,7 +580,9 @@ Ext.define('PveMgr.view.WorkspaceController', {
                 store.insert(store.data.length, toInsert );
                 console.log('vmStore Loaded');
                 me.on( 'pmgrlogin', me.vmGridLoad );
-                //~ Ext.defer(me.vmGridGetDetails, 30000, me);
+                //~ Ext.defer(me.vmGridGetDetails, 3000, me);
+
+                store.fireEvent('load');
             }
         );
     },
