@@ -47,15 +47,17 @@ Ext.define('PveMgr.view.WorkspaceController', {
         store: {
             '#vmStore': {
                 load: function(store, records, successful, operation) {
-                    console.log('load vmStore');
+                    console.log('load vmStore triggered');
+                    console.log(arguments);
                     if (successful) {
                         let vm = this.getViewModel();
-                        let data = store.getProxy().getReader().rawData.data
-                            .sort((a, b) => a.vmid - b.vmid);
-                        vm.set('vmData', data);
+                        let data = store.getProxy().getReader().rawData.data;
+                        if (data) {
+                            data.sort((a, b) => a.vmid - b.vmid);
+                            vm.set('vmData', data);
+                        }
                     } else {
-                        if (operation.error.status == 401);
-                        //~ this.on( 'pmgrlogin', 'load', store, {single: true} );
+                        if (operation && operation.error.status == 401);
                         this.on( 'pmgrlogin', function() {console.log(this.vmGridLoad)} );
                     }
                 },
@@ -173,7 +175,8 @@ Ext.define('PveMgr.view.WorkspaceController', {
     },
 
     updateVMs: function() {
-        Ext.getStore('vmStore').load();
+        //Ext.getStore('vmStore').load();
+        this.vmGridLoad();
     },
 
     onVmGroupingSelect: function(component, record) {
@@ -558,31 +561,42 @@ Ext.define('PveMgr.view.WorkspaceController', {
 
     vmGridLoad: function() {
         const vmGrid = this.lookupReference('vmGrid');
-        const me = this;
+        const wc = this;
 
         PveMgr.req(
             {apiurl: '/vms'},
             {vmids: null},
             function(srvData) {
-                const store = vmGrid.getStore();
+                const store = vmGrid.getStore().getSource();
                 const reader = store.getProxy().getReader();
                 let data = reader.read(srvData); // returns Ext.data.ResultSet
                 let toInsert = [];
+                let records = data.getRecords();
 
-                data.getRecords().forEach( function(r) {
+                store.each( oldRec => {
+                    let id = oldRec.getId();
+
+                    if ( ! records.find( r => r.getId() === id ) ) {
+                        console.log(id);
+                        console.log(store.indexOfId(id));
+                        store.removeAt( store.indexOfId(id) );
+                    }
+                });
+                console.log( vmGrid.getView().refresh() );
+                records.forEach( function(r) {
                     let d = r.getData();
                     let oldrecord = store.getById(d.vmid);
-                    //~ r.data.config = {};
                     if (!oldrecord) {
                         toInsert.push(r);
                     }
                 });
                 store.insert(store.data.length, toInsert );
                 console.log('vmStore Loaded');
-                me.on( 'pmgrlogin', me.vmGridLoad );
-                //~ Ext.defer(me.vmGridGetDetails, 3000, me);
+                wc.on( 'pmgrlogin', wc.vmGridLoad );
+                Ext.defer(wc.vmGridGetDetails, 1000, wc);
 
-                store.fireEvent('load');
+                console.log(store);
+                store.fireEvent( 'load', store, toInsert, true );
             }
         );
     },
@@ -590,16 +604,19 @@ Ext.define('PveMgr.view.WorkspaceController', {
     vmGridGetDetails: function() {
         const vmGrid = this.lookupReference('vmGrid');
         const vmGridView = vmGrid.getView();
-        
 
         let vmids = [];
-        const first = vmGridView.getFirstVisibleRowIndex();
-        const last = vmGridView.getLastVisibleRowIndex();
-        let i;
-        for ( let i = first; i <= last; i++ ) {
-            let vmData = vmGridView.getRecord(i).getData();
-            if ( vmData.config ) continue;
-            vmids.push(vmData.vmid);
+        if (vmGrid.isVisible()) {
+            const first = vmGridView.getFirstVisibleRowIndex();
+            const last = vmGridView.getLastVisibleRowIndex();
+            let i;
+            for ( let i = first; i <= last; i++ ) {
+                let vmData = vmGridView.getRecord(i).getData();
+                if ( vmData.config ) continue;
+                vmids.push(vmData.vmid);
+            }
+        } else {
+            vmids = 'ALL'
         }
 
         if (!vmids.length) return;
@@ -607,18 +624,21 @@ Ext.define('PveMgr.view.WorkspaceController', {
             {apiurl: '/vms'},
             {vmids},
             function(srvData) {
-                console.log(srvData);
-                const store = vmGrid.getStore();
+                const store = vmGrid.getStore().getSource();
                 //~ const reader = store.getProxy().getReader();
                 //~ let data = reader.read(srvData); // returns Ext.data.ResultSet
+                Ext.suspendLayouts();
                 srvData.data.forEach( function(d) {
                     if (!d.config) return;
                     let oldrecord = store.getById(d.vmid);
                     oldrecord.beginEdit();
+
                     oldrecord.data = Ext.create(store.getModel(), d).data;
+
                     oldrecord.endEdit();
                     //~ oldrecord.commit(true);
                 });
+                Ext.resumeLayouts(true);
             }
         );
 

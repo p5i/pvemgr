@@ -2,6 +2,7 @@ Ext.define('PveMgr.model.Vm', {
     extend: 'Ext.data.Model',
     idProperty:'vmid',
     fields: [
+        { name: 'config', defaultValue: null },
         { name: 'vmid', type: 'int' },
         'name',
         'status',
@@ -79,7 +80,7 @@ Ext.define('PveMgr.model.Vm', {
                         obj.node = d.node;
                         return obj;
                     });
-                //console.log(dA);
+                //~ console.log(dA);
                 return dA;
             },
         },{

@@ -849,14 +849,22 @@ sub pmgr_vms {
 
     return $vms if !$vmids;
 
-        #~ $vms = [ grep { $_->{vmid} ~~ @{$vmids} } @{$vms} ];
+    #~ $vms = [ grep { $_->{vmid} ~~ @{$vmids} } @{$vms} ];
+
+    #~ if (!ref $vmids and $vmids eq 'ALL') {
+
+        #~ $_->{config} = $pve->get("/nodes/$_->{node}/$_->{id}/config")
+            #~ for @$vms;
+
+    #~ } else {
 
         foreach my $vm ( @{$vms} ) {
             if ( $vm->{vmid} ~~ @{$vmids} ) {
-                $vm->{config} =
+                $vm->{config} = 
                     $pve->get("/nodes/$vm->{node}/$vm->{id}/config");
             }
         }
+    #~ }
 
     return $vms;
 }

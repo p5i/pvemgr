@@ -114,7 +114,7 @@ Ext.define('PveMgr.view.Workspace', {
             xtype: 'tabpanel',
             width: 500,
             tabBarHeaderPosition: 1,
-            collapsed: false,
+            collapsed: true,
             activeTab: 0,
             items: [
                 {

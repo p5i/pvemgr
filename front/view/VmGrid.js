@@ -153,7 +153,7 @@ Ext.define('PveMgr.view.VmGrid', {
             },
             {
                 text: 'Агент', xtype:'templatecolumn',
-                tpl:'<tpl if="config.agent &gt; 0">Включен</tpl>'
+                tpl:'<tpl if="config && config.agent &gt; 0">Включен</tpl>'
             },
             {
                 text: 'Узел',
@@ -165,6 +165,10 @@ Ext.define('PveMgr.view.VmGrid', {
             {text: 'Память, ГБ', dataIndex: 'maxmem'},
         ],
     },
+
+    //~ store: 'vmStore',
+
+
     store: Ext.create('Ext.data.ChainedStore', {
         source: 'vmStore',
         storeId: 'vmGridStore',
@@ -174,6 +178,9 @@ Ext.define('PveMgr.view.VmGrid', {
         }],
         autoSort: true,
     }),
+
+
+
     //~ beforeShow: function() {
         //~ this.callParent(arguments);
         //~ this.getStore().load();
