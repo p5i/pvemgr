@@ -123,6 +123,8 @@ Ext.define('PveMgr.view.WorkspaceController', {
         login.show();
     },
     wsSelectMainView: function(tabPanel, newCard) {
+        console.log(newCard);
+        console.log(newCard.getItemId());
         this.lookupReference('wsCenter').setActiveItem(newCard.getItemId());
     },
     onAddWindow: function(sender, record) {
@@ -627,15 +629,16 @@ Ext.define('PveMgr.view.WorkspaceController', {
                 const store = vmGrid.getStore().getSource();
                 //~ const reader = store.getProxy().getReader();
                 //~ let data = reader.read(srvData); // returns Ext.data.ResultSet
+
                 Ext.suspendLayouts();
                 srvData.data.forEach( function(d) {
                     if (!d.config) return;
                     let oldrecord = store.getById(d.vmid);
+
                     oldrecord.beginEdit();
-
                     oldrecord.data = Ext.create(store.getModel(), d).data;
-
                     oldrecord.endEdit();
+
                     //~ oldrecord.commit(true);
                 });
                 Ext.resumeLayouts(true);

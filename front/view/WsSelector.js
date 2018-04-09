@@ -1,8 +1,21 @@
 Ext.define('PveMgr.view.WsSelector', {
-    extend: 'Ext.tab.Panel',
-    xtype: 'pvemgr.wsselector',
-    id: 'wsSelector',
-    reference: 'wsSelector',
+    extend:         'Ext.tab.Panel',
+    xtype:          'pvemgr.wsselector',
+    id:             'wsSelector',
+    reference:      'wsSelector',
+    title:          'PveMgr',
+    iconCls:        'x-fa fa fa-cloud fa-spin',
+    width:          250,
+    minWidth:       50,
+    maxwidth:       500,
+
+    //~ tabPosition:    'left',
+    //~ tabRotation:    0,
+
+    activeTab:      1,
+    maxTabWidth:    80,
+    //~ plugins:        'tabreorderer', // Moving tabs buggy in Chromium
+
     header: {
         items: [
             {
@@ -25,20 +38,16 @@ Ext.define('PveMgr.view.WsSelector', {
             },
         },
     },
-    title: 'PveMgr',
-    iconCls: 'x-fa fa fa-cloud fa-spin',
-    width: 250,
-    minWidth: 50,
-    maxwidth: 500,
-    activeTab: 1,
-    //plugins: 'tabreorderer', // Moving tabs buggy in Chromium
+
     listeners: {
         tabchange: 'wsSelectMainView',
         //scope: 'controller',
     },
+
     items:[
         {
-            title: 'Узлы',
+            //~ title: 'Узлы',
+            tooltip: 'Узлы',
             iconCls: 'x-fa fa-server',
             iconAlign: 'top',
             xtype: 'treepanel',
@@ -49,8 +58,10 @@ Ext.define('PveMgr.view.WsSelector', {
                 rootNode: '{formulaNodeTree}',
             },
             rootVisible: false,
+
         },{
-            title: 'Машины',
+            //~ title: 'Машины',
+            tooltip: 'Машины',
             iconCls: 'x-fa fa-desktop',
             iconAlign: 'top',
             xtype: 'treepanel',
@@ -87,7 +98,8 @@ Ext.define('PveMgr.view.WsSelector', {
             //lines: true,
             rootVisible: false,
         },{
-            title: 'Хранилища',
+            //~ title: 'Хранилища',
+            tooltip: 'Хранилища',
             xtype: 'treepanel',
             iconCls: 'x-fa fa-database',
             reference: 'storagesSelector',
@@ -100,8 +112,9 @@ Ext.define('PveMgr.view.WsSelector', {
                 '->', {
                     name: 'groupStorageBy',
                     xtype: 'combobox',
-                    width: 100,
+                    width: 200,
                     valueField: 'value',
+                    fieldLabel: 'Группировать',
                     store: {
                         fields: ['text', 'value'],
                         data: [
@@ -118,6 +131,20 @@ Ext.define('PveMgr.view.WsSelector', {
                 },
             ],
             rootVisible: false,
+        },{
+            //~ title: 'Узлы',
+            tooltip: 'Аналитика',
+            iconCls: 'x-fa fa-line-chart',
+            iconAlign: 'top',
+            xtype: 'treepanel',
+            id: 'analyticstab',
+            itemId: 'analytics',
+            reference: 'analyticsSelector',
+            bind: {
+                rootNode: '{formulaNodeTree}',
+            },
+            rootVisible: false,
+
         },
     ],
 });

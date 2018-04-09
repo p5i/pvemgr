@@ -14,6 +14,10 @@ Ext.define('PveMgr.view.VmGrid', {
         onScrollEnd: function(){ console.log(arguments)},
     },
 
+    viewConfig: {
+        enableTextSelection: true,
+    },
+
     header: {
         items: [
             {

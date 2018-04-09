@@ -104,6 +104,15 @@ Ext.define('PveMgr.view.Workspace', {
                     bind: {
                         title: 'Хранилища данных | {loggedString}',
                     },
+                },{
+                    xtype: 'tabpanel',
+                    reference: 'analyticsTabs',
+                    iconCls: 'x-fa fa-line-chart',
+                    itemId: 'analytics',
+                    title: 'Аналитика',
+                    bind: {
+                        title: 'Аналитика | {loggedString}',
+                    },
                 },
             ],
         },{
