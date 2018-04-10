@@ -30,7 +30,10 @@ use Net::Proxmox::VE;
 use Proc::Daemon;
 use Net::OpenSSH;
 use Time::HiRes qw (sleep);
+use Time::HiRes qw (sleep);
+require Config::Tiny;
 require Data::UUID;
+
 
 use constant SRVHOME    => "$FindBin::Bin/..";
 use constant FRONT      => SRVHOME . "/front";
@@ -45,15 +48,16 @@ use constant PMGR_SERVICE_PW_FILE   => PMGR_HOME . '/.priv/pvemgr';
 use constant PMGR_TASKLOGS               => PMGR_HOME . '/tasklogs/';
 use constant PMGR_MNT               => PMGR_HOME . '/mnt/';
 
-# Just another one workaround for libguestfs https://bugzilla.redhat.com/show_bug.cgi?id=991641
+# Read configuration file
+my $Config = Config::Tiny->read( PMGR_HOME . '/PveMgr.conf' );
 
+# Just another one workaround for libguestfs https://bugzilla.redhat.com/show_bug.cgi?id=991641
 ddx glob "/boot/vmlinuz*";
 ddx chmod 0644, glob "/boot/vmlinuz*";
 
 #
 # switching to pvemgr UID
 #
-
 my $uid = getpwnam(PMGR_USER);
 my $gid = ( getgrnam(PMGR_GROUP) );
 
@@ -85,7 +89,7 @@ Proc::Daemon::Init({
 # <CONFIGURE PVE CLUSTER HERE>
 #
 
-my $pvehost     = '10.14.31.21';
+my $pvehost = $Config->{_}->{pvehost};
 my $pvedebug    = 1;
 my $pverealm    = 'pam';                    # 'pve' or 'pam'
 my $pve;
@@ -1162,7 +1166,7 @@ sub pmgr_poolresources {
     return $result;
 }
 
-# Takes hash refeerence defining vm and
+# Takes hash reference defining vm and
 # returns vm hash reference filled with data
 # $pve is optional, depending on pasased vm properties
 # on failure to get vm data, returns undef
@@ -1477,7 +1481,7 @@ sub pmgr_vm_privileges_get {
     }
 
     my $vm = pmgr_vm( {vmid => $vmid}, $pveservice )
-        or die "Can't get VM data";
+        or die "Can't get $vmid VM data";
     my $poolid = $vm->{pool};
     my @aclpaths = ("/vms/$vmid", "/pool/$poolid", '/');
     my $uid = $pve->{ticket}{username};

@@ -206,8 +206,10 @@ Ext.define('PveMgr.view.WorkspaceModel', {
         },
         formulaStorageTreeGrid: function(get) { // returns rootNode
             let data = get('storageData');
+            console.log(data);
             let root = {expanded: true, storage: 'DUMMY_ROOT', children: []};
             data.forEach(el => {
+                console.log(el);
                 let vmStore = Ext.create('Ext.data.ChainedStore', {
                         source: 'vmStore',
                         filters: [
@@ -220,10 +222,17 @@ Ext.define('PveMgr.view.WorkspaceModel', {
                 });
                 let d = Object.assign({}, el);
                 if (d.shared == 1) {
+                    let disk = d.resources[0] ?
+                        Math.round(d.resources[0].disk/Math.pow(2,30)) + ' ГБ' // 2**30 in ES7
+                      : 0;
+                    let maxdisk = d.resources[0] ?
+                        Math.round(d.resources[0].maxdisk/Math.pow(2,30)) + ' ГБ'
+                      : 0;
+
                     Object.assign(d, {
                         leaf: true,
-                        disk: Math.round(d.resources[0].disk/Math.pow(2,30)) + ' ГБ', // 2**30 in ES7
-                        maxdisk: Math.round(d.resources[0].maxdisk/Math.pow(2,30)) + ' ГБ',
+                        disk,
+                        maxdisk,
                         vmStore: vmStore,
                     });
                 } else {
