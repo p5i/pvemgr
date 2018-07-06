@@ -1,3 +1,5 @@
+// Copyright (c) 2018 Medindex (medindex.ru)
+
 Ext.define('PveMgr.data.Proxy', {
     extend: 'Ext.data.AjaxProxy',
     alias : 'proxy.pvemgr.proxy',

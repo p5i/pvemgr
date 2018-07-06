@@ -1,3 +1,5 @@
+// Copyright (c) 2018 Medindex (medindex.ru)
+
 Ext.define('PveMgr.store.Pools', {
     extend: 'Ext.data.Store',
     model: 'PveMgr.model.Pool',

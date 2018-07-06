@@ -1,3 +1,5 @@
+// Copyright (c) 2018 Medindex (medindex.ru)
+
 Ext.define('PveMgr.store.VmTemplates', {
     extend: 'Ext.data.ChainedStore',
     storeId: 'vmTemplates',

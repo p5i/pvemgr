@@ -1,3 +1,5 @@
+// Copyright (c) 2018 Medindex (medindex.ru)
+
 Ext.define('PveMgr.view.VmBulkDeployController', {
     extend: 'Ext.app.ViewController',
     alias: 'controller.pvemgr.vmbulkdeploy',

@@ -1,3 +1,5 @@
+// Copyright (c) 2018 Medindex (medindex.ru)
+
 // Override chained store to allow grouping
 // Credits: https://www.sencha.com/forum/showthread.php?294029-Grid-does-not-work-with-chained-store-and-grouping-summary&p=1179427&viewfull=1#post1179427
 Ext.override(Ext.data.ChainedStore, {

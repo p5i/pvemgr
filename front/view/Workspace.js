@@ -1,3 +1,5 @@
+// Copyright (c) 2018 Medindex (medindex.ru)
+
 Ext.define('PveMgr.view.Workspace', {
     extend: 'Ext.container.Viewport',
     xtype: 'pvemgr.mainworkspace',

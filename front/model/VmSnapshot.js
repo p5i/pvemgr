@@ -1,3 +1,5 @@
+// Copyright (c) 2018 Medindex (medindex.ru)
+
 Ext.define('PveMgr.model.VmSnapshot', {
     extend: 'Ext.data.TreeModel',
     idProperty: 'name',

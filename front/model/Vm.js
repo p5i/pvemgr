@@ -1,3 +1,5 @@
+// Copyright (c) 2018 Medindex (medindex.ru)
+
 Ext.define('PveMgr.model.Vm', {
     extend: 'Ext.data.Model',
     idProperty:'vmid',

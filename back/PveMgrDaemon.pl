@@ -1,5 +1,7 @@
 # #!/opt/perl/bin/perl
 
+# Copyright (c) 2018 Medindex (medindex.ru)
+
 use common::sense;
 
 # <DEBUGS>

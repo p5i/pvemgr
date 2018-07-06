@@ -1,3 +1,5 @@
+// Copyright (c) 2018 Medindex (medindex.ru)
+
 Ext.define('PveMgr.view.WsSelector', {
     extend:         'Ext.tab.Panel',
     xtype:          'pvemgr.wsselector',

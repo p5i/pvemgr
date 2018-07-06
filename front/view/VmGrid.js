@@ -1,3 +1,5 @@
+// Copyright (c) 2018 Medindex (medindex.ru)
+
 Ext.define('PveMgr.view.VmGrid', {
     extend: 'Ext.grid.Panel',
     xtype: 'pvemgr.vmgrid',

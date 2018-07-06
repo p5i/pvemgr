@@ -1,3 +1,5 @@
+// Copyright (c) 2018 Medindex (medindex.ru)
+
 /*
  *   Структура запроса на деплой ВМ 
  */
