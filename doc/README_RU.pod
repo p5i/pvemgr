@@ -1,0 +1,125 @@
+=encoding utf-8
+
+=head1 Цели
+
+1. Реализовать систему, интегрирующую кластер виртуализации с операционными системами и приложениями
+
+2. Предоставить интерфейс для управления виртальными машинами (ВМ) и группами ВМ и сервисами внутри них через браузер
+
+3. Добиться автоматизированного развертывания и масштабирования сервисов и проектов на базе инфраструктуры виртуального кластера
+
+=head1 Архитектура
+
+Бэкенд представляет из себя вэб сервер, реализованный на Perl с использованием модуля AnyEvent::HTTPD. Сервер асинхронный и многопроцессный, но это не принципиально важно, можно использовать и другие модели, позволяющие обрабатывать параллельные запросы.
+
+Сервер реализует API для управления кластером, операционными системами и сервисами через трансляцию команд в API Proxmox VE и через непосредственное управление операционными системами узлов виртуализации и виртуальных машин (посредством шел и гостевого агента QEMU). Для управления можно использовать собственный Web GUI или интегрировать с другими сервисами.
+
+Связность внешнего управления виртуальными машинами и операционными системами реализовано формированием ВМ из шаблона, конфигурируемого библиотекой libguestfs. В шаблон установлен агент QEMU, позволяющий производить действия с операционной системой без необходимости сетевого доступа к ней.
+
+Аутентификация и авторизация осуществляется через кластер Proxmox VE, который в свою очередь позволяет производить аутентификацию в домене Active Directory, LDAP, а так же локальную PAM и собственную PVE.
+
+=head1 примеры некоторых запросов
+
+$ curl -kd '{"username":"u1", "password":"userpass"}' -H "Content-Type: application/json" -X POST  https://10.100.12.5:3333/api/login
+
+{"success":1,"data":{"pmgrLoginCookie":"63AF82700C9A11E89E72FFE24A0C3A3F"}}
+ 
+$ curl -k -b "pmgrLoginCookie=63AF82700C9A11E89E72FFE24A0C3A3F" -H "Content-Type: application/json" -X POST -d '{"cmd":"getaddress","params":{"vmid":202,"node" :"pve22"}}' "https://10.100.12.5:3333/api/cmd" -v
+
+{"success":1,"msg":"Команда 'getaddress' отправлена Журнал: 2018-02-08_09:38:11-ip-202"}
+ 
+$ curl -k -b "pmgrLoginCookie=63AF82700C9A11E89E72FFE24A0C3A3F" "https://10.100.12.5:3333/api/vmaction?vmid=202&action=stop&node=pve22"
+
+{"success":1,"data":{"msg":"UPID:pve22:00002968:070AE624:5A7BF0FD:qmstop:202:u1@pam:"}}
+ 
+$ curl -k -b "pmgrLoginCookie=63AF82700C9A11E89E72FFE24A0C3A3F" -H "Content-Type: application/json" -X POST -d '{"action":"shellexec","vmid":202,"node" :"pve22","data":{"cmd":"pwd"}}' "https://10.100.12.5:3333/api/qagentaction"
+
+{"success":1,"data":{"return":{"exitcode":0,"exited":true,"out-data":"Lwo="}}}
+ 
+$ curl -k -b "pmgrLoginCookie=63AF82700C9A11E89E72FFE24A0C3A3F" -H "Content-Type: application/json" -X POST -d '{"action":"shellexec","vmid":202,"node" :"pve22","snapAction":"get"}' "https://10.100.12.5:3333/api/vmsnapshots"
+
+{"success":1,"data":[{"snaptime":1517992959,"config":{"scsihw":"virtio-scsi-pci","scsi1":"local:202/vm-202-disk-2.qcow2,discard=on,size=3G","sockets":1,"name":"t","ostype":"l26","balloon":0,"ide2":"none,media=cdrom","scsi2":"test01:vm-202-disk-2,size=1G","net0":"virtio=FE:1F:AF:73:64:1C,bridge=vmbr0","vcpus":4,"numa":1,"agent":1,"scsi0":"local:103/base-103-disk-1.raw/202/vm-202-disk-1.qcow2,discard=on,size=40G","memory":4096,"hotplug":"disk,network,usb,memory,cpu","snaptime":1517992959,"description":"11","bootdisk":"scsi0","smbios1":"uuid=478d03f3-1a1d-4c66-90a8-6305ce318a75","cores":4},"name":"s1","description":"11","vmstate":0},{"snaptime":1517992972,"config":{"name":"t","sockets":1,"ostype":"l26","scsi1":"local:202/vm-202-disk-2.qcow2,discard=on,size=3G","scsihw":"virtio-scsi-pci","vcpus":4,"numa":1,"parent":"s1","net0":"virtio=FE:1F:AF:73:64:1C,bridge=vmbr0","scsi2":"test01:vm-202-disk-2,size=1G","balloon":0,"ide2":"none,media=cdrom","memory":4096,"hotplug":"disk,network,usb,memory,cpu","agent":1,"scsi0":"local:103/base-103-disk-1.raw/202/vm-202-disk-1.qcow2,discard=on,size=40G","cores":4,"smbios1":"uuid=478d03f3-1a1d-4c66-90a8-6305ce318a75","description":"11","bootdisk":"scsi0","snaptime":1517992972},"parent":"s1","name":"s12","vmstate":0,"description":"11"},{"digest":"e933515ce4f15c90b0576a8dd37f4e59d06266e0","running":1,"parent":"s12","name":"current"}]}
+
+=head1 Установка PveMgr на ВМ с Ubuntu.
+
+На  Ububntu 16.04 из шаблона srv01-tmplub01-prep03
+Так как libguestfs использует KVM, для увеличения производительности обработки образа после клонирования почти на порядок, необходимо разместить PveMgr на ВМ с вложенной виртуализацией, либо запускать на аппаратном узле. Установка libguestfs на PVE в данный момент затруднительна.
+
+
+    mkdir /srv/PveMgr
+    cd /srv/PveMgr
+    git clone git@gitlab-dev-ssh.helix.ru:ilin.v/PveMgr.git .
+    apt -y install libcommon-sense-perl libdata-dump-perl libanyevent-perl libanyevent-httpd-perl libjson-perl libfile-mimeinfo-perl libipc-run-perl libcapture-tiny-perl libhttp-message-perl libwww-perl libdata-uuid-perl libcgi-pm-perl ssl-cert sshfs libguestfs0 libguestfs-tools libproc-daemon-perl libnet-openssh-perl libfile-tee-perl libfile-tee-perl
+    useradd pvemgr -d /var/lib/pvemgr -m -r
+    mkdir -p /var/lib/pvemgr/{.ssh,.ssl/private,.ssl/certs,logs,tasklogs,mnt}
+    cp /etc/ssl/private/ssl-cert-snakeoil.key /var/lib/pvemgr/.ssl/private/
+    cp /etc/ssl/certs/ssl-cert-snakeoil.pem /var/lib/pvemgr/.ssl/certs/
+    
+    # When launching PveMgr manually over ssh, with forwarded Agent socket, do not use agent;
+    echo -e 'IdentitiesOnly=yes\nIdentityFile=~/.ssh/id_rsa' > /var/lib/pvemgr/.ssh/config
+    
+    # Adding ssh keys
+    ssh-keygen -C "$(whoami)@$(hostname)-$(date -I)" -trsa -f /var/lib/pvemgr/.ssh/id_rsa -N ''
+    ssh-copy-id -i /var/lib/pvemgr/.ssh/id_rsa.pub root@pve_cluster_node
+    
+    # Configuration file /var/lib/pvemgr/PveMgr.conf in ini style
+    echo pvehost=10.100.9.111 > /var/lib/pvemgr/PveMgr.conf
+    
+    chown pvemgr.pvemgr /var/lib/pvemgr/ -R
+    chmod go-rwx /var/lib/pvemgr/.ssl/ -R
+    chown pvemgr.pvemgr /srv/PveMgr
+    
+    
+    # another way to disable ssh agent usage. Variants:
+    SSH_AUTH_SOCK= perl -w back/PveMgrDaemon.pl
+    SSH_AUTH_SOCK= pkill -f PveMgrDaemon.pl ; sleep 1 ; perl -w back/PveMgrDaemon.pl && tail -f /var/lib/pvemgr/logs/out.log
+
+Так же рекомендуется использовать обновленные версии libguestfs (1.34 и выше) и Qemu (2.11). В них исправлены некоторые проблемы libguestfs, например libguestfs не требуется доступ на чтение к ядру для создания supermin appliance (На самом деле не факт, надо проверить. TODO). Заявлено в документации libguestfs, что производительность тоже улучшена, но фактически ускорения не обнаружено.  http://libguestfs.org/guestfs-performance.1.html
+PPA с новыми версиями можно использовать эти "ppa:evgeny.kuznetsov/progmatic", "ppa:jacob/virtualisation".
+
+=head1 Настройка кластера Proxmox
+
+1. Создаем сервисную УЗ с доступом только на чтение. Используется для ряда операций от имени сервера PveMgr, в случайя когда УЗ текущего пользователя может не иметь необходимых привилегий. Например для получения статуса кластера. Естественно предварительно проверяются права доступа и фильтруются входные данные, когда они есть. На любом узле кластера делаем:
+
+    pveum useradd pvemgr@pve --comment "PveMgr service account"
+    pveum passwd pvemgr@pve
+    pveum aclmod / -user pvemgr@pve -role PVEAuditor
+
+2. Для запуска скриптов и команд деплоя необходимо сформировать и добавить на любой из узлов кластера ssh ключ, соответствующий ключу на сервере PveMgr в каталоге /var/lib/pvemgr/.ssh/. Пример:
+
+    echo ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDN6js8/S3pKSvJqBKn5mu6xzg3No2OknUB0c7bL0zKmeIYP1PH812aXTfywgaoly5utps/2FLzRrR0Je6PAR/yCr0as/6ARk0u340liRLhXgEOVIQQYkw7tKzU2VCxYKeSp4gWmgKzm1HQiMvApM/7sI3qWIZ0SS1+4d5ANKbnQuih1AFSv1roRLBM/9Dq0sALXqUVaAOIGwWGY08pI2I2GtCbA1rCxDm6pVnAggYzzilDG9QT4mkXiP6syLVC8gZ/5f2zdAppEtR3n+1GmxAbzDBe5CRSRuoTm6GPWFlaM29YRgGRxDnfvPo5W/myjmhmBrKnqGKdh94RzFb5nyo7 root@srv01-pvemgr02 >> .ssh/authorized_keys
+
+Либо любым другим способом, например ssh-copy-id.
+TODO: подготовить скрипт и настройки для использования ключа с ограничениями.
+
+=head1 Запуск PveMgr
+
+perl -w back/PveMgrDaemon.pl
+или сразу останавливаем запущенный и просматриваем лог файл
+pkill -f PveMgrDaemon.pl ; sleep 1 ; perl -w back/PveMgrDaemon.pl && tail -f /var/lib/pvemgr/logs/out.log
+или для использования настроенного ключа отдельного файла логов
+SSH_AUTH_SOCK='' pkill -f PveMgrDaemon.pl ; sleep 1 ; perl -w back/PveMgrDaemon.pl && tail -f /var/lib/pvemgr/logs/out.log
+
+=head1 Модули Perl
+
+Net::SSLeay
+common::sense
+Data::Dump qw/pp dd ddx/
+FindBin
+AnyEvent::Strict
+use AnyEvent::HTTPD
+use AnyEvent::Util
+List::Util qw(reduce)
+JSON; # decode_json, encode_json
+File::MimeInfo qw/mimetype/;
+POSIX qw/strftime/;
+IPC::Run;# qw/run/;
+Capture::Tiny qw'capture tee'; # Trying to catch warnings from Net::Proxmox::VE requests
+URI::Escape qw/uri_escape uri_escape_utf8/;
+use Net::Proxmox::VE;
+use Proc::Daemon;
+use Net::OpenSSH;
+use Time::HiRes qw (sleep);
+require Data::UUID;
+CGI::Cookie
+require Config::Tiny; 

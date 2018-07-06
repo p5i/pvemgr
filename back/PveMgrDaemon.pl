@@ -65,8 +65,8 @@ my $gid = ( getgrnam(PMGR_GROUP) );
 # but with hardware virtualization libguestfs runs 6 time faster
 my $kvmgid = ( getgrnam('kvm') );
 
-$( = $) = "$gid " . ($kvmgid or $gid);
-$< = $> = $uid;
+#~ $( = $) = "$gid " . ($kvmgid or $gid);
+#~ $< = $> = $uid;
 
 ddx "UID: $<, $>; GID: $(, $)";
 
@@ -581,7 +581,7 @@ sub pmgr_vmsdeploy {
         ddx "system";
         fork_call {
 
-            pmgr_vmdeploy( $pve, $vm, $vmlogfile);
+            pmgr_vmdeploy_bash( $pve, $vm, $vmlogfile );
 
         } sub {
 
@@ -621,6 +621,7 @@ sub pmgr_vmsdeploy {
     return "Журналы:\n" . join("\n", @logfiles);
 }
 
+# pmgr_vmdeploy is not ready. Use pmgr_vmdeploy_bash
 sub pmgr_vmdeploy {
     my ( $pve, $vm, $logfile ) = @_;
 
@@ -758,7 +759,7 @@ sub pmgr_vmdeploy_bash {
             my $addr = $node[0]{ip};
             push  @cloncmd, '-n', $node, '--node-address', $addr;
         } else {
-            push  @cloncmd, '-n', 'pve21', '--node-address', '10.14.31.21';
+            push  @cloncmd, '-n', 'srv01-PVE11', '--node-address', '10.100.9.111';
         };
 
         push @cloncmd, ("-i", $vm->{vmid})
