@@ -16,38 +16,37 @@ use FindBin;
 BEGIN { # Maximum forks for AnyEvent::Util::fork_call
     $ENV{PERL_ANYEVENT_MAX_FORKS} = 200;
 }
-use AnyEvent::Strict;
-use AnyEvent::HTTPD;
-use AnyEvent::Util;
+use     AnyEvent::Strict;
+use     AnyEvent::HTTPD;
+use     AnyEvent::Util;
 
-use List::Util qw(reduce);
-use JSON; # decode_json, encode_json
-use File::MimeInfo qw/mimetype/;
-use POSIX qw/strftime/;
-use IPC::Run;# qw/run/;
-use Capture::Tiny qw'capture tee';    # Trying to catch warnings from Net::Proxmox::VE requests
-use URI::Escape qw/uri_escape uri_escape_utf8/;
-use lib "$FindBin::Bin/../lib";
-use Net::Proxmox::VE;
-use Proc::Daemon;
-use Net::OpenSSH;
-use Time::HiRes qw (sleep);
-use Time::HiRes qw (sleep);
+use     List::Util          qw(reduce);
+use     JSON;               # decode_json, encode_json
+use     File::MimeInfo      qw/mimetype/;
+use     POSIX               qw/strftime/;
+use     IPC::Run;           # qw/run/;
+use     Capture::Tiny       qw'capture tee';    # Trying to catch warnings from Net::Proxmox::VE requests
+use     URI::Escape         qw/uri_escape uri_escape_utf8/;
+use     lib                 "$FindBin::Bin/../lib";
+use     Net::Proxmox::VE;
+use     Proc::Daemon;
+use     Net::OpenSSH;
+use     Time::HiRes         qw (sleep);
 require Config::Tiny;
 require Data::UUID;
 
 
-use constant SRVHOME    => "$FindBin::Bin/..";
-use constant FRONT      => SRVHOME . "/front";
-use constant EXTJS      => SRVHOME . '/extjs/current';
-use constant SCRIPTS    => SRVHOME . '/scripts/';
+use constant SRVHOME                => "$FindBin::Bin/..";
+use constant FRONT                  => SRVHOME . "/front";
+use constant EXTJS                  => SRVHOME . '/extjs/current';
+use constant SCRIPTS                => SRVHOME . '/scripts/';
 
 use constant PMGR_USER              => 'pvemgr';
 use constant PMGR_GROUP             => 'pvemgr';
 use constant PMGR_HOME              => '/var/lib/pvemgr';
 use constant PMGR_LOGDIR            => PMGR_HOME . '/logs/';
 use constant PMGR_SERVICE_PW_FILE   => PMGR_HOME . '/.priv/pvemgr';
-use constant PMGR_TASKLOGS               => PMGR_HOME . '/tasklogs/';
+use constant PMGR_TASKLOGS          => PMGR_HOME . '/tasklogs/';
 use constant PMGR_MNT               => PMGR_HOME . '/mnt/';
 
 # Read configuration file
